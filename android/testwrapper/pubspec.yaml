@@ -1,5 +1,5 @@
-name: finalproject
-description: "finalP"
+name: testwrapper
+description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -34,10 +34,6 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  camera: ^0.11.2
-  google_mlkit_pose_detection: ^0.14.0
-  fl_chart: ^1.0.0
-  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
