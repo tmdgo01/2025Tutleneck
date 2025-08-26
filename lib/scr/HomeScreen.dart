@@ -8,16 +8,8 @@ import 'package:table_calendar/table_calendar.dart';
 import 'DailyScreen.dart';
 import 'ExerciseScreen.dart';
 
-//
-// void main() async {
-// WidgetsFlutterBinding.ensureInitialized();
-// await initializeDateFormatting();
-//
-// runApp(MaterialApp(
-// debugShowCheckedModeBanner: false,
-// home: HomeScreen(),
-// ));
-// }
+
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
