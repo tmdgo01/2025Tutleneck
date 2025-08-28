@@ -11,9 +11,12 @@ class _SettingscreenState extends State<Settingscreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFE4F3E1),
       appBar: AppBar(
         title: Text('설정'),
+        backgroundColor: Color(0xFFE4F3E1),
       ),
+
     );
   }
 

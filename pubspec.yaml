@@ -65,7 +65,7 @@ flutter:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
   assets:
-    - asset/bottom.png
+   # - asset/bottom.png
     - asset/ex1.jpg
     - asset/ex2.jpg
     - asset/ex3.jpg
