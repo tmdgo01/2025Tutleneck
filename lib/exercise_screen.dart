@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 
@@ -188,6 +189,8 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   @override
   void dispose() {
     _controller?.dispose();
+    /// 뒤로가기시 음성 중지
+    _audioPlayer.stop();
     super.dispose();
   }
 
@@ -317,8 +320,6 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
               ),
                 // 나중에 Image.asset(exercise.gifPath)로 교체
 
-
-
             SizedBox(height: 30.0),
 
             // 운동 설명
@@ -375,8 +376,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                 ),
               ),
               onPressed: () async {
-                // 나중에 TTS 또는 오디오 재생
                 try{
+                  ///// 운동 기록 저장 //////
+                  final today = DateTime.now();
+                  final exerciseName = widget.exercise.title;
+                  Provider.of<ExerciseLog>(context, listen: false).addExercise(today, exerciseName);
+
+                  //// 나중에 TTS 또는 오디오 재생 /////
                   await _audioPlayer.play(AssetSource('vo1-1.mp3'));
                   print('운동타이머 출력됨!');
                 } catch (e) {
@@ -522,5 +528,34 @@ final List<Exercise> exercises = [
   // 다른 운동도 동일하게 추가
 ];
 
+
+////// 날짜별 운동 기록 저장 //////
+class ExerciseLog extends ChangeNotifier {
+  final Map<String, List<String>> _log = {};
+
+  //// 운동기록 추가 /////
+  void addExercise(DateTime date, String exerciseName) {
+    final key = _formatDate(date);
+    if (_log.containsKey(key)) {
+      if (!_log[key]!.contains(exerciseName)) {
+        _log[key]!.add(exerciseName);
+      }
+    } else {
+      _log[key] = [exerciseName];
+    }
+    notifyListeners();
+  }
+
+///// 특정 날짜의 운동 목록 반화 //////
+  List<String> getExercisesForDay(DateTime date) {
+    final key = _formatDate(date);
+    return _log[key] ?? [];
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day
+        .toString().padLeft(2, '0')}';
+  }
+}
 
 

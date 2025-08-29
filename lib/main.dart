@@ -5,15 +5,21 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'alarm_list_page.dart';
 import 'daily_screen.dart';
+import 'package:provider/provider.dart';
+import 'exercise_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
 
-  runApp(MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: HomeScreen(),
-  ));
+  runApp(
+      ChangeNotifierProvider(
+        create: (context) => ExerciseLog(),
+        child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: HomeScreen(),
+          ),
+      ));
 }
 
 class HomeScreen extends StatelessWidget {
