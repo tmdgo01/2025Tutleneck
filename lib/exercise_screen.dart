@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class ExerciseScreen extends StatelessWidget {
   final Map<String, List<String>> exerciseData = {
@@ -138,6 +139,7 @@ class ExerciseScreen extends StatelessWidget {
   }
 }
 
+
 ////// 운동 상세페이지 ////////
 class _ExerciseDetailScreen extends StatefulWidget {
   final Exercise exercise;
@@ -154,6 +156,7 @@ class _ExerciseDetailScreen extends StatefulWidget {
 class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   VideoPlayerController? _controller;
   bool _isPlaying = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   /// 시간표시 함수 ////
   String _formatDuration(Duration duration) {
@@ -174,7 +177,6 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         _controller!.play();
         _isPlaying = true;    // 상태반영
       }).catchError((error) {
-        print('🔥 Video initialize error: $error');
       });
 
       _controller!.addListener(() {
@@ -203,7 +205,8 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             color: Colors.black,
           ),
         ),
-        title: Text(widget.exercise.title,
+        title: Text(
+          widget.exercise.title,
         style: TextStyle(
           color: Colors.black,
           fontSize: 20.0,
@@ -211,6 +214,22 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
           ),
         ),
         centerTitle: true,
+
+        // 팝업 형태로 도움말 띄우기
+        actions: [
+          IconButton(
+            onPressed: (){
+              showDialog(
+                context: context,
+                builder: (context) => _HelpDialog(),
+              );
+            },
+            icon: Icon(
+              Icons.help_outline,
+              color: Colors.black,
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(
@@ -270,9 +289,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                                       _controller!,
                                       allowScrubbing: true,
                                       colors: VideoProgressColors(
-                                        playedColor: Colors.green,
+                                        playedColor: Colors.red,
                                         bufferedColor: Colors.grey,
-                                        backgroundColor: Colors.white,
+                                        backgroundColor: Colors.grey,
                                       ),
                                     ),
                                   ),
@@ -298,25 +317,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
               ),
                 // 나중에 Image.asset(exercise.gifPath)로 교체
 
-            SizedBox(height: 16.0),
 
-            // 음성 안내 버튼
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey[300],
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 12.0,
-                ),
-              ),
-              onPressed: () {
-                // 나중에 TTS 또는 오디오 재생
-                print('Play voice: ${widget.exercise.voiceGuide}');
-              },
-              child: Text('음성 안내'),
-            ),
 
-            SizedBox(height: 24.0),
+            SizedBox(height: 30.0),
 
             // 운동 설명
             Column(
@@ -357,6 +360,116 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                 );
               }).toList(),
             ),
+
+            SizedBox(height: 40.0),
+
+            // 운동하기 버튼
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: Size(200, 50),    // 버튼 넓이
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 12.0,
+                ),
+              ),
+              onPressed: () async {
+                // 나중에 TTS 또는 오디오 재생
+                try{
+                  await _audioPlayer.play(AssetSource('vo1-1.mp3'));
+                  print('운동타이머 출력됨!');
+                } catch (e) {
+                  print('오디오 재생오류:$e');}
+              },
+              child: Text('운동하기'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 도움말 팝업으로 사용안내 띄우기!! ////
+class _HelpDialog extends StatelessWidget {
+  const _HelpDialog({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10.0),
+      ),
+      insetPadding: EdgeInsets.all(30.0),  // 팝업 크기 설정
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18.0),
+          boxShadow: [   // 그림자 효과
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            spreadRadius: 3.0,
+            blurRadius: 3.0,
+          ),
+        ],
+        ),
+        padding: EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '사용 안내',
+              style: TextStyle(
+                fontSize: 24.0,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: 20.0,),
+            Text(
+              '1. 운동시작 전에 영상과 운동방법을 보고 숙지해주세요.',
+              style: TextStyle(fontSize: 16.0),
+            ),
+            SizedBox(height: 10.0,),
+            Text(
+              '2. 숙지한 후에 운동하기 버튼을 눌러주세요.',
+              style: TextStyle(fontSize: 16.0),
+            ),
+            SizedBox(height: 10.0,),
+            Text(
+              '3. 버튼을 누르면 삐삐- 타이머 소리가 나오니 맞춰서 운동해주세요.',
+              style: TextStyle(fontSize: 16.0),
+            ),
+            SizedBox(height: 10.0,),
+            Text(
+              '4. 운동 중에는 올바른 자세를 유지하며, 무리하지 않도록 주의해주세요.',
+              style: TextStyle(fontSize: 16.0),
+            ),
+            SizedBox(height: 20.0,),
+
+            //////// 닫기 버튼
+            Align(
+              alignment: Alignment.center,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: Colors.grey,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(30.0),   // 버튼 둥굴게
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 40.0,
+                    vertical: 12.0,
+                  ),
+                ),
+                onPressed: (){
+                  Navigator.pop(context);
+                },
+                child: Text('닫기'),
+              ),
+            ),
           ],
         ),
       ),
@@ -393,7 +506,7 @@ final List<Exercise> exercises = [
       '효과: 목 앞의 근육을 스트레칭 시켜주어 그 기능을 원활히 해주는 효과가 있다.'
           '특히 목 코어근육인 경장근을 활성화 시켜 준다.'
     ],
-    voiceGuide: 'assets/voice/tuck.mp3', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '턱 당기기',
