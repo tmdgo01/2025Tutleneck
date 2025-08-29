@@ -506,18 +506,18 @@ final List<Exercise> exercises = [
       '효과: 목 앞의 근육을 스트레칭 시켜주어 그 기능을 원활히 해주는 효과가 있다.'
           '특히 목 코어근육인 경장근을 활성화 시켜 준다.'
     ],
-    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
+    voiceGuide: 'asset/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '턱 당기기',
-    gifPath: 'assets/gif/tuck.gif', // 실제 gif 경로 or 임시
+    gifPath: 'asset/gif/tuck.gif', // 실제 gif 경로 or 임시
     description: [
       '정면을 바라본다.',
       '턱을 당긴다.',
       '5초간 지속한다.',
       '10회 3set 실시'
     ],
-    voiceGuide: 'assets/voice/tuck.mp3', // 실제 음성 파일 경로
+    voiceGuide: 'asset/voice/tuck.mp3', // 실제 음성 파일 경로
   ),
   // 다른 운동도 동일하게 추가
 ];
