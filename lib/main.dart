@@ -16,9 +16,9 @@ void main() async {
       ChangeNotifierProvider(
         create: (context) => ExerciseLog(),
         child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: HomeScreen(),
-          ),
+          debugShowCheckedModeBanner: false,
+          home: HomeScreen(),
+        ),
       ));
 }
 
