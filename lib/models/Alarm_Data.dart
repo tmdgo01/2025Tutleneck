@@ -13,6 +13,7 @@ class AlarmData {
   bool isAlarmEnabled;
   final DateTime createdAt;
   final String? label;
+  List<int> notificationIds = [];
 
   AlarmData({
     required this.id,
