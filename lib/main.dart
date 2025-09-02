@@ -32,25 +32,48 @@ class HomeScreen extends StatelessWidget {
       body: Column(
         children: [
           SizedBox(
-            height: 50.0,  // 상단여백
+            height: 80.0,  // 상단여백
             ///여백 수정
           ),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset('asset/logo.png',
-                height: 250,
-                width: 250,
+                height: 200,
+                width: 300,
               ),
             ],
           ),
-          SizedBox(height: 10.0),  // 여백
+
+
+          // 텍스트 메시지 박스
+          Container(
+            width: 300,
+            height: 80,
+            padding: EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15.0),
+              border: Border.all(color: Colors.black12),
+            ),
+            child: Text('ooo님은 현재 심각 단계입니다. \n 풀 운동을 실천해주세요!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.black87,
+              fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          SizedBox(height: 30.0),
+
           ///사이즈 박스 수정 여백 수정
           Padding(
             padding: EdgeInsets.symmetric(horizontal: 40.0),
             child: Column(
               children: [
-                Row(
+                Column(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _MenuButton(
@@ -76,14 +99,14 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                SizedBox(height: 30.0,),
-                Row(
+
+                Column(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _MenuButton(
                       icon: Icons.fitness_center,
                       label: '운동',
-                      color: Color(0xFFD2F0DC),
+                      color: Color(0xFFF1F3C9),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -96,7 +119,7 @@ class HomeScreen extends StatelessWidget {
                     _MenuButton(
                       icon: Icons.access_alarms_outlined,
                       label: '알람',
-                      color: Color(0xFFF1F3C9),
+                      color: Color(0xFFD2F0DC),
                       onTap: (){
                         Navigator.push(
                           context,
@@ -109,14 +132,13 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
                 ///수정 사항입니다(메뉴버튼 추가, 로고 이동), 버튼 위치 조정
-                SizedBox(height: 30.0,),
-                Row(
+                Column(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _MenuButton(
                       icon: Icons.settings,
                       label: '설정',
-                      color: Color(0xFFD2F0DC),
+                      color: Color(0xFFF1F3C9),
                       onTap: () {
                         Navigator.push(
                           context,
@@ -170,18 +192,22 @@ class _MenuButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 130,
-        height: 130,
+        width: double.infinity,
+        margin: EdgeInsets.symmetric(
+          vertical: 8.0,
+          horizontal: 20.0,
+        ),
+        padding: EdgeInsets.symmetric(vertical: 16.0),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(20.0),
           border: Border.all(color: Colors.black12),
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon,size: 30.0,),
-            SizedBox(height: 10.0,),
+            SizedBox(width: 12.0,),
             Text(label,
               style: TextStyle(
                   fontWeight: FontWeight.bold),

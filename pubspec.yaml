@@ -40,6 +40,9 @@ dependencies:
   video_player_android: ^2.3.7
   audioplayers: ^6.5.0
   provider: ^6.1.0
+  firebase_core: ^4.0.0
+  cloud_firestore: ^6.0.0
+
 
 
 dev_dependencies:

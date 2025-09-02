@@ -160,15 +160,15 @@ class ExerciseScreen extends StatelessWidget {
             ),
 
             // 하단 이미지
-            Positioned(
-              bottom: 20.0,
-              right: 20.0,
-              child: Image.asset(
-                'asset/bottom.png',
-                width: 60.0,
-                height: 60.0,
-              ),
-            ),
+            // Positioned(
+            //   bottom: 20.0,
+            //   right: 20.0,
+            //   child: Image.asset(
+            //     'asset/bottom.png',
+            //     width: 60.0,
+            //     height: 60.0,
+            //   ),
+            // ),
           ],
         ),
       ),
@@ -537,10 +537,10 @@ class ExerciseLog extends ChangeNotifier {
   //// 운동기록 추가 /////
   void addExercise(DateTime date, String exerciseName) {
     final key = _formatDate(date);
+
+    // 중복 허용
     if (_log.containsKey(key)) {
-      if (!_log[key]!.contains(exerciseName)) {
-        _log[key]!.add(exerciseName);
-      }
+      _log[key]!.add(exerciseName);
     } else {
       _log[key] = [exerciseName];
     }
