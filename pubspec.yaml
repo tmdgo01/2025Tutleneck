@@ -49,6 +49,7 @@ dependencies:
   video_player: ^2.10.0
   video_player_android: ^2.3.7
   audioplayers: ^6.5.0
+  shared_preferences: ^2.5.3
 
 
 dev_dependencies:

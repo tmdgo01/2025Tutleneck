@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376786311168",
+    "project_id": "tutleneck25",
+    "storage_bucket": "tutleneck25.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376786311168:android:04a71fa5bdb080315420e5",
+        "android_client_info": {
+          "package_name": "com.example.finalproject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChl15BO5GMh8dFO2YYL_S366HafnMfhxI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
