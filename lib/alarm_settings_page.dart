@@ -4,8 +4,13 @@ import 'alarm_data.dart'; // lib 폴더 직접 참조
 
 class AlarmSettingsPage extends StatefulWidget {
   final Function(AlarmData)? onAlarmCreated;
+  final AlarmData? existingAlarm; // 기존 알람 데이터
 
-  const AlarmSettingsPage({super.key, this.onAlarmCreated});
+  const AlarmSettingsPage({
+    super.key,
+    this.onAlarmCreated,
+    this.existingAlarm, // 수정모드용 기존 알람
+  });
 
   @override
   State<AlarmSettingsPage> createState() => _AlarmSettingsPageState();
@@ -24,6 +29,42 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
   int endMinute = 0;
   String alarmLabel = '';
   bool _isSaving = false;
+
+  late final TextEditingController _labelController; // 추가
+  bool get isEditMode => widget.existingAlarm != null; // 수정 모드인지 확인
+
+  @override
+  void initState() {
+    super.initState();
+    _labelController = TextEditingController();
+
+    // 기존 알람이 있으면 해당 데이터로 초기화
+    if (widget.existingAlarm != null) {
+      final alarm = widget.existingAlarm!;
+
+      // DropdownButton용 _selectedLabel은 _labels에 있는 값만 설정
+      if (alarm.label != null && _labels.contains(alarm.label)) {
+        _selectedLabel = alarm.label;
+      } else {
+        _selectedLabel = null; // DropdownButton은 null로 설정
+      }
+
+      activeDays = List.from(alarm.activeDays);
+      selectedInterval = alarm.selectedInterval;
+      startHour = alarm.startHour;
+      startMinute = alarm.startMinute;
+      endHour = alarm.endHour;
+      endMinute = alarm.endMinute;
+      alarmLabel = alarm.label ?? ''; // TextField용은 실제 라벨 값 사용
+      _labelController.text = alarm.label ?? '';
+    }
+  }
+
+  @override
+  void dispose() {
+    _labelController.dispose();
+    super.dispose();
+  }
 
   String _generateUniqueId() =>
       DateTime.now().millisecondsSinceEpoch.toString() +
@@ -185,26 +226,45 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
     setState(() => _isSaving = true);
 
     try {
-      final newAlarm = AlarmData(
-        id: _generateUniqueId(),
-        activeDays: List.from(activeDays),
-        startHour: startHour,
-        startMinute: startMinute,
-        endHour: endHour,
-        endMinute: endMinute,
-        selectedInterval: selectedInterval,
-        isAlarmEnabled: true,
-        createdAt: DateTime.now(),
-        label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
-      );
+      final AlarmData alarmData;
+
+      if (isEditMode) {
+        // 수정 모드: 기존 알람의 ID와 생성일자 유지
+        alarmData = AlarmData(
+          id: widget.existingAlarm!.id, // 기존 ID 유지
+          activeDays: List.from(activeDays),
+          startHour: startHour,
+          startMinute: startMinute,
+          endHour: endHour,
+          endMinute: endMinute,
+          selectedInterval: selectedInterval,
+          isAlarmEnabled: widget.existingAlarm!.isAlarmEnabled, // 기존 상태 유지
+          createdAt: widget.existingAlarm!.createdAt, // 기존 생성일자 유지
+          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
+        );
+      } else {
+        // 새 알람 생성 모드
+        alarmData = AlarmData(
+          id: _generateUniqueId(),
+          activeDays: List.from(activeDays),
+          startHour: startHour,
+          startMinute: startMinute,
+          endHour: endHour,
+          endMinute: endMinute,
+          selectedInterval: selectedInterval,
+          isAlarmEnabled: true,
+          createdAt: DateTime.now(),
+          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
+        );
+      }
 
       if (widget.onAlarmCreated != null) {
-        widget.onAlarmCreated!(newAlarm);
+        widget.onAlarmCreated!(alarmData);
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('운동 알람이 저장되었습니다!'),
+          content: Text(isEditMode ? '알람이 수정되었습니다!' : '운동 알람이 저장되었습니다!'),
           backgroundColor: Colors.green[400],
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -213,13 +273,8 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
 
       await Future.delayed(const Duration(seconds: 1));
 
-      // 콜백과 return 값 모두 지원
-      if (widget.onAlarmCreated != null) {
-        widget.onAlarmCreated!(newAlarm);
-      }
-
       // Navigator.pop으로 알람 데이터 반환
-      Navigator.pop(context, newAlarm);
+      Navigator.pop(context, alarmData);
 
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -267,7 +322,7 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFE4F3E1),
       appBar: AppBar(
-        title: const Text('운동 알람 설정'),
+        title: Text(isEditMode ? '알람 수정' : '운동 알람 설정'),
         backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
       ),
@@ -311,6 +366,7 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
                     const Text('알람 제목 (선택사항)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 12),
                     TextField(
+                      controller: _labelController,
                       onChanged: (value) => alarmLabel = value,
                       decoration: InputDecoration(
                         hintText: '예: 아침 운동, 점심 스트레칭',

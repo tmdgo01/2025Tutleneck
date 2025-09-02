@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'alarm_data.dart'; // lib 폴더 직접 참조
-import 'alarm_repository.dart'; // lib 폴더 직접 참조
-import 'alarm_settings_page.dart'; // lib 폴더 직접 참조
+import 'alarm_data.dart';
+import 'alarm_repository.dart';
+import 'alarm_settings_page.dart';
 
 class AlarmListPage extends StatefulWidget {
   const AlarmListPage({super.key});
@@ -55,6 +55,31 @@ class _AlarmListPageState extends State<AlarmListPage> {
       }
     } catch (e) {
       print('알람 추가 오류: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('오류가 발생했습니다'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  /// 알람 업데이트
+  Future<void> _updateAlarm(int index, AlarmData updatedAlarm) async {
+    try {
+      final success = await _repository.updateAlarm(updatedAlarm);
+
+      if (success) {
+        setState(() {
+          alarms[index] = updatedAlarm;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('알람이 수정되었습니다')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('알람 수정 실패'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      print('알람 수정 오류: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('오류가 발생했습니다'), backgroundColor: Colors.red),
       );
@@ -133,13 +158,6 @@ class _AlarmListPageState extends State<AlarmListPage> {
         title: const Text('운동 알람'),
         backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadAlarms,
-            tooltip: '새로고침',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -173,117 +191,142 @@ class _AlarmListPageState extends State<AlarmListPage> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: LinearGradient(
-                  colors: alarm.isAlarmEnabled
-                      ? [Colors.white, const Color(0xFFF8FFF8)]
-                      : [Colors.grey[50]!, Colors.grey[100]!],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            child: InkWell(
+              onTap: () async {
+                // 알람 수정 페이지로 이동
+                final updatedAlarm = await Navigator.push<AlarmData>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AlarmSettingsPage(
+                      existingAlarm: alarm, // 기존 알람 데이터 전달
+                    ),
+                  ),
+                );
+
+                // 수정된 알람이 반환되면 업데이트
+                if (updatedAlarm != null) {
+                  await _updateAlarm(index, updatedAlarm);
+                }
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: LinearGradient(
+                    colors: alarm.isAlarmEnabled
+                        ? [Colors.white, const Color(0xFFF8FFF8)]
+                        : [Colors.grey[50]!, Colors.grey[100]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                alarm.label ?? '운동 알람',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: alarm.isAlarmEnabled ? Colors.black : Colors.grey,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        alarm.label ?? '운동 알람',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: alarm.isAlarmEnabled ? Colors.black : Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${_formatTime(alarm.startHour, alarm.startMinute)} ~ ${_formatTime(alarm.endHour, alarm.endMinute)}',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: alarm.isAlarmEnabled ? const Color(0xFF4CAF50) : Colors.grey,
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${_formatTime(alarm.startHour, alarm.startMinute)} ~ ${_formatTime(alarm.endHour, alarm.endMinute)}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: alarm.isAlarmEnabled ? const Color(0xFF4CAF50) : Colors.grey,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: alarm.isAlarmEnabled,
-                          onChanged: (val) => _toggleAlarm(index, val),
-                          activeColor: const Color(0xFF4CAF50),
-                          activeTrackColor: const Color(0xFF4CAF50).withOpacity(0.3),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4CAF50).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${alarm.selectedInterval}시간 간격',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF4CAF50),
-                              fontWeight: FontWeight.w500,
+                              ],
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _getActiveDaysString(alarm.activeDays),
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                          Switch(
+                            value: alarm.isAlarmEnabled,
+                            onChanged: (val) => _toggleAlarm(index, val),
+                            activeColor: const Color(0xFF4CAF50),
+                            activeTrackColor: const Color(0xFF4CAF50).withOpacity(0.3),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4CAF50).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${alarm.selectedInterval}시간 간격',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF4CAF50),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: Icon(
-                            Icons.delete_outline,
-                            color: Colors.red[400],
-                            size: 20,
-                          ),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('알람 삭제'),
-                                content: const Text('이 알람을 삭제하시겠습니까?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('취소'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () {
-                                      _deleteAlarm(index);
-                                      Navigator.pop(context);
-                                    },
-                                    child: const Text('삭제', style: TextStyle(color: Colors.red)),
-                                  ),
-                                ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _getActiveDaysString(alarm.activeDays),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              Icons.delete_outline,
+                              color: Colors.red[400],
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('알람 삭제'),
+                                  content: const Text('이 알람을 삭제하시겠습니까?'),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('취소'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () {
+                                        _deleteAlarm(index);
+                                        Navigator.pop(context);
+                                      },
+                                      child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

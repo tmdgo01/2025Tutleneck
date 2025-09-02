@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'alarm_data.dart';
+import 'alarm_data.dart'; // lib 폴더 직접 참조
 
 class AlarmRepository {
   static const String _alarmsKeyPrefix = 'alarms_list_';
@@ -30,6 +30,7 @@ class AlarmRepository {
           alarms.add(alarm);
         } catch (e) {
           print('개별 알람 파싱 오류: $e, 데이터: $alarmString');
+          // 손상된 데이터는 건너뛰고 계속 진행
           continue;
         }
       }
@@ -65,7 +66,7 @@ class AlarmRepository {
     }
   }
 
-  /// 알람 상태 업데이트
+  /// 알람 상태 업데이트 (활성화/비활성화)
   Future<bool> updateAlarmStatus(String alarmId, bool isEnabled) async {
     try {
       final alarms = await loadAlarms();
@@ -82,7 +83,37 @@ class AlarmRepository {
     }
   }
 
-  /// 현재 사용자 데이터 삭제
+  /// 특정 알람 업데이트
+  Future<bool> updateAlarm(AlarmData updatedAlarm) async {
+    try {
+      final alarms = await loadAlarms();
+      final index = alarms.indexWhere((alarm) => alarm.id == updatedAlarm.id);
+
+      if (index != -1) {
+        alarms[index] = updatedAlarm;
+        return await _saveAllAlarms(alarms);
+      }
+      return false;
+    } catch (e) {
+      print('알람 업데이트 중 오류 발생: $e');
+      return false;
+    }
+  }
+
+  /// 모든 알람 삭제
+  Future<bool> clearAllAlarms() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userKey = _getUserAlarmsKey();
+      await prefs.remove(userKey);
+      return true;
+    } catch (e) {
+      print('모든 알람 삭제 중 오류 발생: $e');
+      return false;
+    }
+  }
+
+  /// 현재 사용자의 모든 알람 데이터 삭제 (로그아웃 시 호출)
   Future<bool> clearCurrentUserData() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -92,6 +123,64 @@ class AlarmRepository {
     } catch (e) {
       print('사용자 데이터 삭제 중 오류 발생: $e');
       return false;
+    }
+  }
+
+  /// 특정 사용자의 알람 데이터 삭제 (관리자용)
+  Future<bool> clearUserData(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userKey = '${_alarmsKeyPrefix}$userId';
+      await prefs.remove(userKey);
+      return true;
+    } catch (e) {
+      print('특정 사용자 데이터 삭제 중 오류 발생: $e');
+      return false;
+    }
+  }
+
+  /// 특정 ID로 알람 찾기
+  Future<AlarmData?> getAlarmById(String alarmId) async {
+    try {
+      final alarms = await loadAlarms();
+      final index = alarms.indexWhere((alarm) => alarm.id == alarmId);
+      return index != -1 ? alarms[index] : null;
+    } catch (e) {
+      print('알람 검색 중 오류 발생: $e');
+      return null;
+    }
+  }
+
+  /// 활성화된 알람만 가져오기
+  Future<List<AlarmData>> getActiveAlarms() async {
+    try {
+      final allAlarms = await loadAlarms();
+      return allAlarms.where((alarm) => alarm.isAlarmEnabled).toList();
+    } catch (e) {
+      print('활성 알람 로드 중 오류 발생: $e');
+      return [];
+    }
+  }
+
+  /// 총 알람 개수
+  Future<int> getAlarmCount() async {
+    try {
+      final alarms = await loadAlarms();
+      return alarms.length;
+    } catch (e) {
+      print('알람 개수 조회 중 오류 발생: $e');
+      return 0;
+    }
+  }
+
+  /// 활성화된 알람 개수
+  Future<int> getActiveAlarmCount() async {
+    try {
+      final activeAlarms = await getActiveAlarms();
+      return activeAlarms.length;
+    } catch (e) {
+      print('활성 알람 개수 조회 중 오류 발생: $e');
+      return 0;
     }
   }
 
