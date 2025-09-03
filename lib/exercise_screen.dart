@@ -675,7 +675,30 @@ class ExerciseLog extends ChangeNotifier {
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
+
+  /// 오늘 운동 횟수 반환
+  int get todayCount {
+    final todayKey = _formatDate(DateTime.now());
+    return _log[todayKey]?.length ?? 0;
+  }
+
+  /// 최근 7일간 운동한 일수 반환
+  int get weeklyExerciseDays {
+    final now = DateTime.now();
+    int count = 0;
+    for (int i = 0; i < 7; i++) {
+      final day = now.subtract(Duration(days: i));
+      final key = _formatDate(day);
+      if (_log.containsKey(key) && (_log[key]?.isNotEmpty ?? false)) {
+        count++;
+      }
+    }
+    return count;
+  }
 }
+
+
+
 
 ///// 탭 상태 /////
 class ExerciseTab extends StatefulWidget {

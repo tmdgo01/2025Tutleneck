@@ -8,6 +8,7 @@ import 'daily_screen.dart';
 import 'package:provider/provider.dart';
 import 'exercise_screen.dart';
 import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,152 +24,235 @@ void main() async {
       ));
 }
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int dailyGoal = 3;  // 기본값
+  int weeklyGoal = 5;  // 기본값
+
+  String goalMessage = '';
+
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadGoalsAndCheck();
+    });
+
+  }
+
+  Future<void> _loadGoalsAndCheck() async {
+    final prefs = await SharedPreferences.getInstance();
+    int loadedDailyGoal = prefs.getInt('dailyGoal') ?? 3;
+    int loadedWeeklyGoal = prefs.getInt('weeklyGoal') ?? 5;
+
+    setState(() {
+      dailyGoal = loadedDailyGoal;
+      weeklyGoal = loadedWeeklyGoal;
+    });
+
+    _checkGoals();
+  }
+
+  void _checkGoals() {
+    final exerciseLog = Provider.of<ExerciseLog>(context, listen: false);
+    int todayCount = exerciseLog.todayCount;
+    int weeklyDays = exerciseLog.weeklyExerciseDays;
+
+    String message;
+
+    if (todayCount >= dailyGoal && weeklyDays >= weeklyGoal) {
+      message = "오늘과 이번 주 목표를 모두 달성했어요! 정말 멋져요! 🎉";
+    } else if (todayCount >= dailyGoal) {
+      message = "오늘 목표를 달성했어요! 잘했어요! 👍";
+    } else if (weeklyDays >= weeklyGoal) {
+      message = "이번 주 목표를 달성했어요! 멋져요! 💪";
+    } else {
+      message = "오늘도 화이팅! 조금만 더 힘내요! 😊";
+    }
+
+    setState(() {
+      goalMessage = message;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFFE4F3E1),
-      body: Column(
-        children: [
-          SizedBox(
-            height: 80.0,  // 상단여백
-            ///여백 수정
-          ),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('asset/logo.png',
-                height: 200,
-                width: 300,
-              ),
-            ],
-          ),
-
-
-          // 텍스트 메시지 박스
-          Container(
-            width: 300,
-            height: 100,
-            padding: EdgeInsets.all(12.0),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(15.0),
-              border: Border.all(color: Colors.black12),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            SizedBox(
+              height: 80.0,  // 상단여백
+              ///여백 수정
             ),
-            child: Text('ooo님, 현재 [심각 단계]입니다. \n 오늘도 회복을 위한 '
-                '\n 작은 움직임을 함께 해봐요!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
 
-          SizedBox(height: 30.0),
-
-          ///사이즈 박스 수정 여백 수정
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40.0),
-            child: Column(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _MenuButton(
-                      icon: Icons.monitor_heart,
-                      label: '측정',
-                      color: Color(0xFFF1F3C9),
-                      onTap: (){
-                        print('측정 클릭됨!');
-                      },
-                    ),
-                    _MenuButton(
-                      icon: Icons.calendar_month,
-                      label: '일지',
-                      color: Color(0xFFD2F0DC),
-                      onTap: (){
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => DailyScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                Image.asset('asset/logo.png',
+                  height: 200,
+                  width: 300,
                 ),
-
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _MenuButton(
-                      icon: Icons.fitness_center,
-                      label: '운동',
-                      color: Color(0xFFF1F3C9),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ExerciseScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    _MenuButton(
-                      icon: Icons.access_alarms_outlined,
-                      label: '알람',
-                      color: Color(0xFFD2F0DC),
-                      onTap: (){
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AlarmListPage(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-                ///수정 사항입니다(메뉴버튼 추가, 로고 이동), 버튼 위치 조정
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _MenuButton(
-                      icon: Icons.settings,
-                      label: '설정',
-                      color: Color(0xFFF1F3C9),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => Settingscreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    // Image.asset('asset/sit.png',
-                    //   width: 100.0,)
-                  ],
-                ),
-                ///수정입니다 (수정 사항 끝)
-                ///거북이 위치 확인!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                // SizedBox(height: 100,),
-                //  Row(
-                //    mainAxisAlignment: MainAxisAlignment.end,
-                //    children: [
-                //      Image.asset('asset/bottom.png',
-                //        width: 80.0,)
-                //    ],
-
-                ////////////////////////////////////////////////////////////////////////
               ],
             ),
-          ),
-        ],
+
+            // 목표 달성 메시지 박스 추가
+            Container(
+              width: 300,
+              height: 60,
+              margin: EdgeInsets.only(top: 20, bottom: 20),
+              padding: EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15.0),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Center(
+                child: Text(
+                  goalMessage.isEmpty
+                      ? '목표 데이터를 불러오는 중입니다...'
+                      : goalMessage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+
+            // 텍스트 메시지 박스 (필요하면 삭제 가능)
+            Container(
+              width: 300,
+              height: 100,
+              padding: EdgeInsets.all(12.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15.0),
+                border: Border.all(color: Colors.black12),
+              ),
+              child: Text('ooo님, 현재 [심각 단계]입니다. \n 오늘도 회복을 위한 '
+                  '\n 작은 움직임을 함께 해봐요!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            SizedBox(height: 10.0),
+
+            ///사이즈 박스 수정 여백 수정
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 40.0),
+              child: Column(
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _MenuButton(
+                        icon: Icons.monitor_heart,
+                        label: '측정',
+                        color: Color(0xFFF1F3C9),
+                        onTap: (){
+                          print('측정 클릭됨!');
+                        },
+                      ),
+                      _MenuButton(
+                        icon: Icons.calendar_month,
+                        label: '일지',
+                        color: Color(0xFFD2F0DC),
+                        onTap: (){
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => DailyScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _MenuButton(
+                        icon: Icons.fitness_center,
+                        label: '운동',
+                        color: Color(0xFFF1F3C9),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ExerciseScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _MenuButton(
+                        icon: Icons.access_alarms_outlined,
+                        label: '알람',
+                        color: Color(0xFFD2F0DC),
+                        onTap: (){
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => AlarmListPage(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                  ///수정 사항입니다(메뉴버튼 추가, 로고 이동), 버튼 위치 조정
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _MenuButton(
+                        icon: Icons.settings,
+                        label: '설정',
+                        color: Color(0xFFF1F3C9),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SettingScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      // Image.asset('asset/sit.png',
+                      //   width: 100.0,)
+                    ],
+                  ),
+                  ///수정입니다 (수정 사항 끝)
+                  ///거북이 위치 확인!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                  // SizedBox(height: 100,),
+                  //  Row(
+                  //    mainAxisAlignment: MainAxisAlignment.end,
+                  //    children: [
+                  //      Image.asset('asset/bottom.png',
+                  //        width: 80.0,)
+                  //    ],
+
+                  ////////////////////////////////////////////////////////////////////////
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
