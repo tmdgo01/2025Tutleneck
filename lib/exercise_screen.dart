@@ -516,7 +516,10 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: _goToNextExercise,
+                    onPressed: () {
+                      _audioPlayer.stop();  // <-- 오디오 정지 추가
+                      _goToNextExercise();
+                    },
                     child: const Text('다음'),
                   )
                 else
@@ -527,6 +530,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
+                      _audioPlayer.stop();
                       showDialog(
                         context: context,
                         builder: (_) => AlertDialog(
