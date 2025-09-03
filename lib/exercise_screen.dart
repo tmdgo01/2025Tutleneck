@@ -112,7 +112,7 @@ class ExerciseScreen extends StatelessWidget {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                     _ExerciseDetailScreen(exercise: exercise),
+                                      _ExerciseDetailScreen(exercise: exercise),
                                 ),
                               );
                             },
@@ -207,6 +207,21 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   @override
   void initState() {
     super.initState();
+
+    // 오디오 포커스 설정: 영상 방해하지 않게
+    _audioPlayer.setAudioContext(
+        AudioContext(android: const AudioContextAndroid(
+          isSpeakerphoneOn: true,
+          stayAwake: false,
+          contentType: AndroidContentType.music,
+          audioFocus: AndroidAudioFocus.none,  // 포커스 안 가져오게 설정
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {AVAudioSessionOptions.mixWithOthers},  // ios도 동시에 재생 허용
+        ),
+    ));
+
     if (widget.exercise.gifPath.endsWith('.mp4')) {
       _controller = VideoPlayerController.asset(widget.exercise.gifPath);
       _controller!.initialize().then((_) {
@@ -360,39 +375,52 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
 
             // 운동 설명
             Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: widget.exercise.description.asMap().entries.map((e) {
-                int idx = e.key + 1;
-                String text = e.value;
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: widget.exercise.description.asMap().entries.map((entry) {
+                final idx = entry.key + 1;
+                final text = entry.value;
 
-                // 앞부분 (예: '시작자세 :')과 나머지로 분리
-                List<String> parts = text.split(':');
-                String title = parts.length > 1 ? parts[0] : '';
-                String body = parts.length > 1 ? parts.sublist(1).join(':') : text;
+                // '시작자세: 팔을...' 형식 분리
+                final parts = text.split(':');
+                final title = parts.length > 1 ? parts[0].trim() : '설명';
+                final body = parts.length > 1 ? parts.sublist(1).join(':').trim() : text;
 
-                return Padding(
-                  padding: EdgeInsets.only(bottom: 12.0),  // 항목 사이 간격
-                  child: RichText(
-                    text: TextSpan(
-                      children: [
-                        if(title.isNotEmpty)
-                          TextSpan(
-                            text: '$idx. $title: ',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16.0,
-                              color: Colors.black,
-                            ),
-                          ),
-                        TextSpan(
-                          text: body,
-                          style: TextStyle(
-                            fontSize: 16.0,
-                            color: Colors.black,
-                          ),
+                return Container(
+                  margin: EdgeInsets.only(bottom: 12),
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.black12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black12,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '$idx. $title',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16.0,
+                          color: Colors.black87,
                         ),
-                      ],
-                    ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        body,
+                        style: TextStyle(
+                          fontSize: 15.0,
+                          color: Colors.black87,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }).toList(),
@@ -639,6 +667,5 @@ class _ExerciseTabState extends State<ExerciseTab>
     );
   }
 }
-
 
 

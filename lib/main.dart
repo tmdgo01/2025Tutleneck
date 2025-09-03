@@ -7,6 +7,7 @@ import 'alarm_list_page.dart';
 import 'daily_screen.dart';
 import 'package:provider/provider.dart';
 import 'exercise_screen.dart';
+import 'dart:async';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +18,7 @@ void main() async {
         create: (context) => ExerciseLog(),
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          home: HomeScreen(),
+          home: _LoadingScreen(),
         ),
       ));
 }
@@ -50,14 +51,15 @@ class HomeScreen extends StatelessWidget {
           // 텍스트 메시지 박스
           Container(
             width: 300,
-            height: 80,
+            height: 100,
             padding: EdgeInsets.all(12.0),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(15.0),
               border: Border.all(color: Colors.black12),
             ),
-            child: Text('ooo님은 현재 심각 단계입니다. \n 풀 운동을 실천해주세요!',
+            child: Text('ooo님, 현재 [심각 단계]입니다. \n 오늘도 회복을 위한 '
+                '\n 작은 움직임을 함께 해봐요!',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.black87,
@@ -215,6 +217,105 @@ class _MenuButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+////// 로딩 화면 //////
+class _LoadingScreen extends StatefulWidget {
+  const _LoadingScreen({super.key});
+
+  @override
+  State<_LoadingScreen> createState() => _LoadingScreenState();
+}
+
+class _LoadingScreenState extends State<_LoadingScreen>
+    with SingleTickerProviderStateMixin {
+  double _opacity = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 페이드 인 시작
+    Future.delayed(Duration(milliseconds: 200), () {
+      setState(() {
+        _opacity = 1.0;
+      });
+    });
+
+    // 3초 뒤 메인 화면 이동
+    Timer(Duration(seconds: 3), () {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black87,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFE4F3E1),
+              Color(0xFFD2F0DC),   // 아래쪾에 살짝 붉은빛 도는 색상
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedOpacity(
+                duration: Duration(seconds: 2),
+                curve: Curves.easeInOut,
+                opacity: _opacity,
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.lightGreenAccent.withOpacity(0.5),  /// 빛나는 색
+                        blurRadius: 80.0,
+                        spreadRadius: 30.0,
+                      ),
+                    ],
+                  ),
+                  child: Image.asset(
+                    'asset/1.png',
+                    width: 200,
+                    height: 200,
+                  ),
+                ),
+              ),
+
+              SizedBox(height: 12.0),
+              /// 하단 텍스트
+              Padding(
+                padding: EdgeInsets.only(bottom: 40.0),
+                child: Text(
+                  'Turtle neck',
+                  style: TextStyle(
+                    color: Colors.black.withOpacity(0.5), // 반투명 흰색
+                    fontSize: 20.0,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 2,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+
     );
   }
 }
