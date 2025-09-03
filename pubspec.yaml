@@ -45,6 +45,7 @@ dependencies:
   firebase_auth: ^6.0.1
   fl_chart: ^0.71.0
   shared_preferences: ^2.1.1
+  lottie: ^2.3.2
 
 
 
@@ -58,6 +59,13 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.0
+
+flutter_native_splash:
+  color: "#FFFFFF"           # 배경색
+  image: assets/start.png    # 정적 이미지 (GIF의 첫 프레임 추천)
+  android: true
+  ios: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -81,6 +89,7 @@ flutter:
     - asset/1.png
     - asset/ex1-1.mp4
     - assets/vo1-1.mp3
+    - asset/dh.json
 
 
 

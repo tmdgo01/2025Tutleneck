@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'exercise_screen.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lottie/lottie.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -403,3 +404,37 @@ class _LoadingScreenState extends State<_LoadingScreen>
     );
   }
 }
+// class _SplashPage extends StatefulWidget {
+//   const _SplashPage({super.key});
+//
+//   @override
+//   State<_SplashPage> createState() => _SplashPageState();
+// }
+//
+// class _SplashPageState extends State<_SplashPage> {
+//   @override
+//   void initState() {
+//     super.initState();
+//     Timer(const Duration(seconds: 3), () {
+//       Navigator.pushReplacement(
+//         context,
+//         MaterialPageRoute(builder: (_) => HomeScreen()),
+//       );
+//     });
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       backgroundColor: Color(0xFFFFDF8E8),
+//       body: Center(
+//         child: Lottie.asset(
+//           'assets/dh.json',  // GIF를 변환한 Lottie 파일
+//           width:300,
+//           height: 300,
+//           fit: BoxFit.contain,
+//         ),
+//       ),
+//     );
+//   }
+// }
