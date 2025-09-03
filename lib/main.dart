@@ -7,27 +7,38 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:camera/camera.dart';
 import 'package:finalproject/alarm_list_page.dart';
-import 'package:finalproject/alarm_service.dart';
+import 'package:finalproject/posture_service.dart'; // Firebase 자세 점수 서비스
 import 'package:intl/date_symbol_data_local.dart';
 import 'daily_screen.dart';
 import 'package:finalproject/scr/tracking_page.dart';
+import 'package:finalproject/scr/splash.dart';
 
 List<CameraDescription> cameras = [];
 
 void main() async {
-  // Flutter 위젯 바인딩 초기화
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
 
   try {
-    // 카메라 초기화
     cameras = await availableCameras();
     print('사용 가능한 카메라: ${cameras.length}개');
   } catch (e) {
     print('카메라 초기화 실패: $e');
   }
 
-  runApp(MyApp());
+  runApp(const EntryPoint());
+}
+
+class EntryPoint extends StatelessWidget {
+  const EntryPoint({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: SplashScreen(), // 스플래시 먼저 보여줌
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -44,9 +55,7 @@ class MyApp extends StatelessWidget {
             return const Scaffold(
               backgroundColor: Color(0xFFE4F3E1),
               body: Center(
-                child: CircularProgressIndicator(
-                  color: Colors.green,
-                ),
+                child: CircularProgressIndicator(color: Colors.green),
               ),
             );
           }
@@ -74,7 +83,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 인증 상태를 확인하는 래퍼 위젯
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -87,18 +95,14 @@ class AuthWrapper extends StatelessWidget {
           return const Scaffold(
             backgroundColor: Color(0xFFE4F3E1),
             body: Center(
-              child: CircularProgressIndicator(
-                color: Colors.green,
-              ),
+              child: CircularProgressIndicator(color: Colors.green),
             ),
           );
         }
 
         if (snapshot.hasData) {
-          // 사용자가 로그인된 경우
           return HomeScreen();
         } else {
-          // 사용자가 로그인되지 않은 경우
           return AuthScreen();
         }
       },
@@ -115,31 +119,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String userName = '사용자';
-  final AlarmService _alarmService = AlarmService(); // 알람 서비스 추가
+  final PostureService _postureService = PostureService();
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
-
-    // 알람 서비스 시작
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _alarmService.startAlarmService(context);
-    });
-  }
-
-  @override
-  void dispose() {
-    // 알람 서비스 중지
-    _alarmService.stopAlarmService();
-    super.dispose();
   }
 
   Future<void> _loadUserInfo() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Firestore에서 사용자 정보 가져오기
         DocumentSnapshot userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -171,17 +162,15 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const SizedBox(height: 20),
 
-              // 로고와 앱 제목
+              // 로고
               Column(
                 children: [
-                  // 로고 이미지
                   Container(
                     width: 190,
                     child: Image.asset(
                       'asset/logo.png',
                       fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) {
-                        // 이미지 로드 실패 시 기본 아이콘 표시
                         return Container(
                           width: 190,
                           height: 120,
@@ -204,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 32),
 
-              // 사용자 환영 메시지
+              // Firebase 실시간 자세 점수 표시
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -219,14 +208,49 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Text(
-                  '${userName} 님\n자세 점수 000점',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.black87,
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
+                child: StreamBuilder<double>(
+                  stream: _postureService.getPostureScoreStream(),
+                  builder: (context, snapshot) {
+                    final score = snapshot.data ?? 0.0;
+
+                    // 점수에 따른 색상 결정
+                    Color scoreColor;
+                    if (score >= 80) {
+                      scoreColor = Colors.green[700]!;
+                    } else if (score >= 60) {
+                      scoreColor = Colors.orange[700]!;
+                    } else {
+                      scoreColor = Colors.red[700]!;
+                    }
+
+                    return RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        children: [
+                          // 사용자 이름 부분 (검은색 고정)
+                          TextSpan(
+                            text: '${userName} 님!\n',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black87,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          // 자세 점수 부분 (점수에 따라 색상 변경)
+                          TextSpan(
+                            text: '자세 점수 ${score.toStringAsFixed(1)}점',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: scoreColor,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
 
@@ -335,7 +359,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity,
+        width: MediaQuery.of(context).size.width * 0.6,
         height: 60,
         decoration: BoxDecoration(
           color: color,
@@ -348,24 +372,26 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        child: Row(
-          children: [
-            const SizedBox(width: 24),
-            Icon(
-              icon,
-              size: 24,
-              color: Colors.black87,
-            ),
-            const SizedBox(width: 16),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+        child: Center( // <-- Center로 감싸서 내부 내용 중앙 정렬
+          child: Row(
+            mainAxisSize: MainAxisSize.min, // Row 크기를 최소로 줄여서 중앙 정렬 가능
+            children: [
+              Icon(
+                icon,
+                size: 24,
                 color: Colors.black87,
               ),
-            ),
-          ],
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -1,9 +1,10 @@
-import 'dart:async';
+import 'dart:async'; // <--- 추가된 부분: Timer 사용을 위해
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:finalproject/posture_service.dart'; // <--- 추가된 부분: PostureService 임포트
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -26,18 +27,22 @@ class _PosturePalPageState extends State<PosturePalPage> {
   String _currentPosture = "분석중...";
   String _previousPosture = "정상";
   double _confidence = 0.0;
-  int _badPostureCount = 0; // 연속 나쁜 자세 카운트
+  int _badPostureCount = 0;
 
   DateTime? _startTime;
   int _totalTrackedSeconds = 0;
   List<PoseLandmark> _landmarksToDraw = [];
   Offset? _neckPoint;
-  bool _alertEnabled = true; // 알림 활성화
-  bool _showOffsets = false; // offset 표기 토글
-  Size? _imageSize; // 카메라 이미지 크기 저장
+  bool _alertEnabled = true;
+  bool _showOffsets = false;
+  Size? _imageSize;
 
-  // PosturePal 통계 (3단계 구분)
   Map<String, int> _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+
+  // --- ▼▼▼ 추가된 부분 ▼▼▼ ---
+  final PostureService _postureService = PostureService(); // 서비스 인스턴스 생성
+  Timer? _saveTimer; // 주기적으로 저장할 타이머
+  // --- ▲▲▲ 추가된 부분 ▲▲▲ ---
 
   @override
   void initState() {
@@ -45,7 +50,30 @@ class _PosturePalPageState extends State<PosturePalPage> {
     _initializeCamera();
     _poseDetector = PoseDetector(options: PoseDetectorOptions());
     _startTime = DateTime.now();
+    _startSavingTimer(); // <--- 추가된 부분: 타이머 시작 함수 호출
   }
+
+  // --- ▼▼▼ 추가된 부분 ▼▼▼ ---
+  /// 1초마다 현재 자세 점수를 계산하고 Firebase에 저장하는 타이머 시작
+  void _startSavingTimer() {
+    _saveTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      // 전체 프레임 수 계산
+      final totalFrames = _postureStats.values.fold(0, (prev, count) => prev + count);
+      if (totalFrames == 0) return;
+
+      // '정상' 자세 비율을 100점 만점 점수로 변환
+      final normalCount = _postureStats['정상'] ?? 0;
+      final double currentScore = (normalCount / totalFrames) * 100.0;
+
+      // PostureService를 사용해 점수와 통계 저장
+      _postureService.savePostureScore(
+        score: currentScore,
+        stats: _postureStats,
+      );
+    });
+  }
+  // --- ▲▲▲ 추가된 부분 ▲▲▲ ---
+
 
   /// 전면 카메라 초기화
   Future<void> _initializeCamera() async {
@@ -85,7 +113,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
         image.height.toDouble(),
       );
 
-      // 이미지 크기 저장
       _imageSize = imageSize;
 
       final inputImage = InputImage.fromBytes(
@@ -103,7 +130,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
         _analyzePosturePal(poses.first);
       }
     } catch (e) {
-      // Error handling without debug output
+      // Error handling
     } finally {
       _isBusy = false;
     }
@@ -111,44 +138,38 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
   /// PosturePal 핵심 자세 분석 알고리즘
   void _analyzePosturePal(Pose pose) {
-    // 키포인트 추출 (PosturePal 기준)
     final keypoints = _extractKeypoints(pose);
     if (keypoints.isEmpty) return;
 
-    // 36차원 벡터 생성
     final postureVector = _createPostureVector(keypoints);
     if (postureVector.isEmpty) return;
 
-    // 자세 분류 (3단계 구분)
     final postureResult = _classifyPosture(postureVector, keypoints);
 
-    // 통계 업데이트
     _updatePostureStats(postureResult['posture']);
-
-    // 나쁜 자세 알림 체크
     _checkBadPostureAlert(postureResult['posture']);
 
-    setState(() {
-      _currentPosture = postureResult['posture'];
-      _confidence = postureResult['confidence'];
-      _landmarksToDraw = _getAllLandmarks(pose);
-      _neckPoint = keypoints['neck'];
+    if (mounted) {
+      setState(() {
+        _currentPosture = postureResult['posture'];
+        _confidence = postureResult['confidence'];
+        _landmarksToDraw = _getAllLandmarks(pose);
+        _neckPoint = keypoints['neck'];
 
-      // 히스토리 관리
-      _postureHistory.add(_currentPosture);
-      _vectorHistory.add(postureVector);
-      if (_postureHistory.length > 100) {
-        _postureHistory.removeAt(0);
-        _vectorHistory.removeAt(0);
-      }
-    });
+        _postureHistory.add(_currentPosture);
+        _vectorHistory.add(postureVector);
+        if (_postureHistory.length > 100) {
+          _postureHistory.removeAt(0);
+          _vectorHistory.removeAt(0);
+        }
+      });
+    }
   }
 
   /// PosturePal 키포인트 추출
   Map<String, Offset?> _extractKeypoints(Pose pose) {
     final keypoints = <String, Offset?>{};
 
-    // PosturePal 논문의 주요 키포인트들
     keypoints['nose'] = _getLandmarkOffset(pose, PoseLandmarkType.nose);
     keypoints['leftEye'] = _getLandmarkOffset(pose, PoseLandmarkType.leftEye);
     keypoints['rightEye'] = _getLandmarkOffset(pose, PoseLandmarkType.rightEye);
@@ -179,7 +200,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
       PoseLandmarkType.rightWrist,
     );
 
-    // 목 중심점 계산 (PosturePal 기준점)
     final leftShoulder = keypoints['leftShoulder'];
     final rightShoulder = keypoints['rightShoulder'];
     if (leftShoulder != null && rightShoulder != null) {
@@ -198,34 +218,21 @@ class _PosturePalPageState extends State<PosturePalPage> {
     if (neck == null) return [];
 
     final vector = <double>[];
-
-    // 목을 기준으로 상대 좌표 계산
     final keypointOrder = [
-      'nose',
-      'leftEye',
-      'rightEye',
-      'leftEar',
-      'rightEar',
-      'leftShoulder',
-      'rightShoulder',
-      'leftElbow',
-      'rightElbow',
-      'leftWrist',
-      'rightWrist',
+      'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder',
+      'rightShoulder', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist',
     ];
 
     for (final key in keypointOrder) {
       final point = keypoints[key];
       if (point != null) {
-        vector.add(point.dx - neck.dx); // 상대 X 좌표
-        vector.add(point.dy - neck.dy); // 상대 Y 좌표
+        vector.add(point.dx - neck.dx);
+        vector.add(point.dy - neck.dy);
       } else {
-        // Keypoint dropout 처리
         vector.add(0.0);
         vector.add(0.0);
       }
     }
-
     return vector;
   }
 
@@ -246,37 +253,28 @@ class _PosturePalPageState extends State<PosturePalPage> {
       return {'posture': '분석중...', 'confidence': 0.0};
     }
 
-    // PosturePal 핵심 각도 계산들
     final headNeckAngle = _calculateHeadNeckAngle(nose, neck);
     final shoulderSlope = _calculateShoulderSlope(leftShoulder, rightShoulder);
     final forwardRatio = _calculateForwardRatio(nose, neck);
 
-    // 3단계 자세 분류 규칙
     String posture;
     double confidence;
 
-    // 심각: 매우 나쁜 자세
     if (forwardRatio > 0.25 || headNeckAngle < 50) {
       posture = "심각";
       confidence = min(forwardRatio * 4, 1.0);
-    }
-    // 위험: 약간 나쁜 자세
-    else if (forwardRatio > 0.15 || headNeckAngle < 75) {
+    } else if (forwardRatio > 0.15 || headNeckAngle < 75) {
       posture = "위험";
       confidence = min(forwardRatio * 6, 1.0);
-    }
-    // 정상: 좋은 자세
-    else {
+    } else {
       posture = "정상";
       confidence = 1.0 - (forwardRatio.abs() * 3);
     }
 
     confidence = confidence.clamp(0.0, 1.0);
-
     return {'posture': posture, 'confidence': confidence};
   }
 
-  /// 머리-목 각도 계산
   double _calculateHeadNeckAngle(Offset nose, Offset neck) {
     final dx = nose.dx - neck.dx;
     final dy = nose.dy - neck.dy;
@@ -284,14 +282,12 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return angle;
   }
 
-  /// 어깨 기울기 계산
   double _calculateShoulderSlope(Offset leftShoulder, Offset rightShoulder) {
     final dy = rightShoulder.dy - leftShoulder.dy;
     final dx = rightShoulder.dx - leftShoulder.dx;
     return dx == 0 ? 0 : dy / dx;
   }
 
-  /// 전방 비율 계산 (PosturePal 핵심)
   double _calculateForwardRatio(Offset nose, Offset neck) {
     final dx = nose.dx - neck.dx;
     final dy = nose.dy - neck.dy;
@@ -299,9 +295,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return distance == 0 ? 0 : dx / distance;
   }
 
-  /// 자세 통계 업데이트
   void _updatePostureStats(String posture) {
-    // 안전한 업데이트
     switch (posture) {
       case "정상":
         _postureStats["정상"] = (_postureStats["정상"] ?? 0) + 1;
@@ -312,33 +306,25 @@ class _PosturePalPageState extends State<PosturePalPage> {
       case "심각":
         _postureStats["심각"] = (_postureStats["심각"] ?? 0) + 1;
         break;
-      default:
-        return;
     }
   }
 
-  /// 나쁜 자세 알림 체크
   void _checkBadPostureAlert(String posture) {
     if (!_alertEnabled) return;
 
     if (posture != "정상") {
       _badPostureCount++;
-      // 연속 30프레임(약 1초) 나쁜 자세 시 알림
       if (_badPostureCount >= 30) {
         _triggerPostureAlert(posture);
-        _badPostureCount = 0; // 리셋
+        _badPostureCount = 0;
       }
     } else {
       _badPostureCount = 0;
     }
   }
 
-  /// 자세 알림 트리거
   void _triggerPostureAlert(String badPosture) {
-    // 진동 알림
     HapticFeedback.mediumImpact();
-
-    // 화면 알림
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -366,7 +352,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
     }
   }
 
-  /// 헬퍼 함수들
   Offset? _getLandmarkOffset(Pose pose, PoseLandmarkType type) {
     final landmark = pose.landmarks[type];
     return landmark != null ? Offset(landmark.x, landmark.y) : null;
@@ -383,6 +368,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
   @override
   void dispose() {
+    _saveTimer?.cancel(); // <--- 추가된 부분: 화면 나갈 때 타이머 취소
     _cameraController?.dispose();
     _poseDetector.close();
     super.dispose();
@@ -390,7 +376,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
   @override
   Widget build(BuildContext context) {
-    // totalFrames 계산 시 안전한 처리
     final totalFrames = _postureStats.values.isEmpty
         ? 0
         : _postureStats.values.reduce((a, b) => a + b);
@@ -404,26 +389,16 @@ class _PosturePalPageState extends State<PosturePalPage> {
         backgroundColor: Colors.black87,
         title: const Text('PosturePal - 자세 분석기'),
         actions: [
-          // 알림 토글
           IconButton(
-            onPressed: () {
-              setState(() {
-                _alertEnabled = !_alertEnabled;
-              });
-            },
+            onPressed: () => setState(() => _alertEnabled = !_alertEnabled),
             icon: Icon(
               _alertEnabled
                   ? Icons.notifications_active
                   : Icons.notifications_off,
             ),
           ),
-          // offset 표기 토글 추가 (전체 키포인트 on/off)
           IconButton(
-            onPressed: () {
-              setState(() {
-                _showOffsets = !_showOffsets;
-              });
-            },
+            onPressed: () => setState(() => _showOffsets = !_showOffsets),
             icon: Icon(_showOffsets ? Icons.visibility : Icons.visibility_off),
             tooltip: '키포인트 표시',
           ),
@@ -433,14 +408,11 @@ class _PosturePalPageState extends State<PosturePalPage> {
           ? const Center(child: CircularProgressIndicator())
           : Stack(
         children: [
-          // 카메라 미러 모드
           Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
             child: CameraPreview(_cameraController!),
           ),
-
-          // 키포인트 오버레이 (상체만, offset 토글 적용)
           Transform(
             alignment: Alignment.center,
             transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
@@ -450,13 +422,11 @@ class _PosturePalPageState extends State<PosturePalPage> {
                 neckPoint: _neckPoint,
                 postureType: _currentPosture,
                 imageSize: _imageSize,
-                showOffsets: _showOffsets, // offset 표기 토글 전달
+                showOffsets: _showOffsets,
               ),
               child: Container(),
             ),
           ),
-
-          // PosturePal UI
           Positioned(
             bottom: 40,
             left: 0,
@@ -471,7 +441,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 현재 자세 (3단계 구분)
                   Row(
                     children: [
                       Icon(
@@ -492,10 +461,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 8),
-
-                  // 신뢰도
                   Text(
                     "신뢰도: ${(_confidence * 100).toStringAsFixed(1)}%",
                     style: const TextStyle(
@@ -503,10 +469,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
                       fontSize: 14,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
-                  // 정상 자세 비율
                   Text(
                     "정상 자세 비율: ${normalRatio.toStringAsFixed(1)}%",
                     style: TextStyle(
@@ -519,10 +482,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
-                  // 3단계 통계 (null 방지)
                   Row(
                     children: [
                       Expanded(
@@ -563,7 +523,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
     );
   }
 
-  /// 자세별 아이콘 반환
   IconData _getPostureIcon(String posture) {
     switch (posture) {
       case "정상":
@@ -577,7 +536,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
     }
   }
 
-  /// 자세별 색상 반환
   Color _getPostureColor(String posture) {
     switch (posture) {
       case "정상":
@@ -598,7 +556,7 @@ class PosturePalPainter extends CustomPainter {
   final Offset? neckPoint;
   final String postureType;
   final Size? imageSize;
-  final bool showOffsets; // offset 표기 토글
+  final bool showOffsets;
 
   PosturePalPainter({
     required this.landmarks,
@@ -610,10 +568,8 @@ class PosturePalPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (imageSize == null || !showOffsets)
-      return; // showOffsets가 false면 아무것도 그리지 않음
+    if (imageSize == null || !showOffsets) return;
 
-    // 자세별 색상 (3단계)
     Color postureColor;
     switch (postureType) {
       case "정상":
@@ -633,89 +589,28 @@ class PosturePalPainter extends CustomPainter {
       ..style = PaintingStyle.fill
       ..color = postureColor;
 
-    // 한국어 신체 부위 매핑
-    String getLandmarkName(int index) {
-      final types = [
-        '코',
-        '왼눈안',
-        '왼눈',
-        '왼눈밖',
-        '오른눈안',
-        '오른눈',
-        '오른눈밖',
-        '왼귀',
-        '오른귀',
-        '입좌',
-        '입우',
-        '왼어깨',
-        '오른어깨',
-        '왼팔꿈치',
-        '오른팔꿈치',
-        '왼손목',
-        '오른손목',
-        '왼엉덩이',
-        '오른엉덩이',
-        '왼무릎',
-        '오른무릎',
-        '왼발목',
-        '오른발목',
-        '왼발뒤꿈치',
-        '오른발뒤꿈치',
-        '왼발가락',
-        '오른발가락',
-        '왼손새끼',
-        '오른손새끼',
-        '왼손검지',
-        '오른손검지',
-        '왼손엄지',
-        '오른손엄지',
-      ];
-      return index < types.length ? types[index] : '알수없음';
+    String getLandmarkName(PoseLandmarkType type) {
+      // 간단한 타입 이름 반환
+      return type.toString().split('.').last;
     }
 
-    // 상체만 표시 (점만)
-    for (int i = 0; i < landmarks.length; i++) {
-      final landmark = landmarks[i];
-      final landmarkName = getLandmarkName(i);
+    final upperBodyTypes = [
+      PoseLandmarkType.nose, PoseLandmarkType.leftEyeInner, PoseLandmarkType.leftEye,
+      PoseLandmarkType.leftEyeOuter, PoseLandmarkType.rightEyeInner, PoseLandmarkType.rightEye,
+      PoseLandmarkType.rightEyeOuter, PoseLandmarkType.leftEar, PoseLandmarkType.rightEar,
+      PoseLandmarkType.leftMouth, PoseLandmarkType.rightMouth, PoseLandmarkType.leftShoulder,
+      PoseLandmarkType.rightShoulder, PoseLandmarkType.leftElbow, PoseLandmarkType.rightElbow,
+      PoseLandmarkType.leftWrist, PoseLandmarkType.rightWrist
+    ];
 
-      // 상체 부위만 필터링 (하체 완전 제외)
-      final upperBodyParts = [
-        '코',
-        '왼눈안',
-        '왼눈',
-        '왼눈밖',
-        '오른눈안',
-        '오른눈',
-        '오른눈밖',
-        '왼귀',
-        '오른귀',
-        '입좌',
-        '입우',
-        '왼어깨',
-        '오른어깨',
-        '왼팔꿈치',
-        '오른팔꿈치',
-        '왼손목',
-        '오른손목',
-      ];
-
-      if (!upperBodyParts.contains(landmarkName)) continue; // 하체 완전 스킵
-
-      // 점만 그리기 (위치 보정: y좌표를 위로 이동)
-      canvas.drawCircle(
-        Offset(landmark.x - 30, landmark.y - 65), // 좌표 수정
-        3,
-        pointPaint,
-      );
+    for (final landmark in landmarks) {
+      if (upperBodyTypes.contains(landmark.type)) {
+        canvas.drawCircle(Offset(landmark.x, landmark.y), 3, pointPaint);
+      }
     }
 
-    // 목 중심점 표시 (위치 보정: y좌표를 위로 이동)
     if (neckPoint != null) {
-      canvas.drawCircle(
-        Offset(neckPoint!.dx - 30, neckPoint!.dy - 80), // 좌표 수정
-        5,
-        pointPaint,
-      );
+      canvas.drawCircle(neckPoint!, 5, pointPaint);
     }
   }
 
