@@ -58,7 +58,7 @@ final List<Exercise> exercises = [
           '효과: 목 앞의 근육을 스트레칭시켜 주어 그 기능을 원활히 해주는 효과가 있다.'
           '특히 목 코어근육인 경장근을 활성화시켜 준다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '목 스트레칭:후방',
@@ -71,7 +71,7 @@ final List<Exercise> exercises = [
           '효과: 목 뒤의 근육은 경직되기가 매우 쉽다. '
           '이들 근육을 이완시켜 줌으로써 목,어깨 통증과 두통의 완화는 물론 자세의 교정에도 많은 도움이 된다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '목 스트레칭:외측',
@@ -85,7 +85,7 @@ final List<Exercise> exercises = [
           '예를 들어 우측 목에 통증이 있으면 좌측으로만 굽힌다. 중앙에 통증이 있으면 양쪽 모두 굽힌다.',
       '효과: 목의 좌우측 근육을 스트레칭 시켜 주어 그 기능을 원활히 해주는 효과가 있다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '목 스트레칭:외측2',
@@ -99,7 +99,7 @@ final List<Exercise> exercises = [
           '예를 들어 우측 목에 통증이 있으면 좌측으로만 굽힌다. 중앙에 통증이 있으면 양쪽 모두 굽힌다.',
       '효과: 목의 좌우측 근육을 스트레칭 시켜 주어 그 기능을 원활히 해주는 효과가 있다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '목 돌리기',
@@ -113,7 +113,7 @@ final List<Exercise> exercises = [
       '주의사항 : 머리는 수평을 이루면서 돌리도록 하고 돌릴 때 어깨가 따라 돌아가지 않도록 주의한다.',
       '효과: 목의 외측 부위 근육을 스트레칭 시켜 주면서 가동성도 증대시켜 준다. 목의 움직임이 원활해진다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '목 돌리기2',
@@ -125,7 +125,7 @@ final List<Exercise> exercises = [
       '주의사항 : 머리를 돌릴 때 어깨가 따라 돌아가지 않도록 주의한다.',
       '효과: 목에 전반적인 근육 스트레칭을 해주면서 경추의 각 관절에 가동성을 증대시켜 주는 효과가 있다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '어깨 돌리기',
@@ -137,7 +137,7 @@ final List<Exercise> exercises = [
       '주의사항 : 어깨를 돌릴 때 머리와 상체가 따라 돌아가지 않도록 주의한다.',
       '효과: 어깨 주변 근육을 이완시켜 주면서 어깨 가동성을 중대시켜 주고 목의 움직임도 함께 원활해진다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '어깨 스트레칭',
@@ -149,7 +149,7 @@ final List<Exercise> exercises = [
       '주의사항 : 어깨가 귀를 향해 위쪽으로 올라가지 않도록 주의한다.',
       '효과: 어깨의 외회전 근육을 스트레칭 시켜 줌으로써 어깨관절의 기능을 원활히 해주는 효과가 있다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
   Exercise(
     title: '어깨, 가슴, 등 스트레칭',
@@ -162,6 +162,6 @@ final List<Exercise> exercises = [
       '주의사항 : 상체를 앞으로 숙일 때 무릎이 굽혀지지 않도록 주의한다.',
       '효과: 어깨와 가슴이 스트레칭 되기 때문에 구부정한 어깨 자세를 교정해줄 뿐만 아니라 호흡을 편안하게 해주는 효과도 있다.'
     ],
-    voiceGuide: '', // 실제 음성 파일 경로
+    voiceGuide: 'assets/vo1-1.mp3', // 실제 음성 파일 경로
   ),
 ];

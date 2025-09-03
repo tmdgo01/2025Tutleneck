@@ -1,3 +1,4 @@
+import 'package:finalproject/daily_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
@@ -58,7 +59,8 @@ class ExerciseScreen extends StatelessWidget {
   // 운동 이름 Map → 운동 객체 Map 변환
   late final Map<String, List<Exercise>> exerciseData = {
     for (final entry in rawExerciseData.entries)
-      entry.key: entry.value.map((title) => findExerciseByTitle(title)!).toList(),
+      entry.key:
+      entry.value.map((title) => findExerciseByTitle(title)!).toList(),
   };
 
   @override
@@ -74,50 +76,53 @@ class ExerciseScreen extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.arrow_back, color: Colors.black),
           ),
+          // 탭 제목이 많으면 자동 스크롤 가능하도록
+          bottom: TabBar(
+            isScrollable: true,
+            indicatorColor: Colors.red,
+            indicatorWeight: 4.0,
+            labelColor: Colors.green,
+            labelStyle: const TextStyle(
+              fontSize: 16.0,
+              fontWeight: FontWeight.bold,
+            ),
+            unselectedLabelColor: Colors.grey,
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 16.0,
+              fontWeight: FontWeight.w300,
+            ),
+            tabs: exerciseData.keys.map((title) => Tab(text: title)).toList(),
+          ),
         ),
         body: Stack(
           children: [
             Column(
               children: [
-                // 탭바
-                TabBar(
-                  indicatorColor: Colors.red,
-                  indicatorWeight: 4.0,
-                  labelColor: Colors.green,
-                  labelStyle: const TextStyle(
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  unselectedLabelColor: Colors.grey,
-                  unselectedLabelStyle: const TextStyle(
-                    fontSize: 16.0,
-                    fontWeight: FontWeight.w300,
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 20.0),
-                  tabs: exerciseData.keys.map((title) => Tab(text: title)).toList(),
-                ),
-                const SizedBox(height: 20.0),
+                const SizedBox(height: 12.0),
                 // 탭 내용
                 Expanded(
                   child: TabBarView(
                     children: exerciseData.entries.map((entry) {
-                      final exercises = entry.value;
+                      final tabExercises = entry.value;
                       return ListView.builder(
-                        itemCount: exercises.length,
+                        itemCount: tabExercises.length,
                         itemBuilder: (context, index) {
-                          final exercise = exercises[index];
+                          final exercise = tabExercises[index];
                           return GestureDetector(
                             onTap: () {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      _ExerciseDetailScreen(exercise: exercise),
+                                  builder: (context) => _ExerciseDetailScreen(
+                                    exercises: tabExercises, // 해당 탭 전체 리스트
+                                    initialIndex: index, // 선택한 인덱스
+                                  ),
                                 ),
                               );
                             },
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10.0),
                               child: Row(
                                 children: [
                                   Padding(
@@ -158,17 +163,6 @@ class ExerciseScreen extends StatelessWidget {
                 ),
               ],
             ),
-
-            // 하단 이미지
-            // Positioned(
-            //   bottom: 20.0,
-            //   right: 20.0,
-            //   child: Image.asset(
-            //     'asset/bottom.png',
-            //     width: 60.0,
-            //     height: 60.0,
-            //   ),
-            // ),
           ],
         ),
       ),
@@ -176,13 +170,14 @@ class ExerciseScreen extends StatelessWidget {
   }
 }
 
-
 ////// 운동 상세페이지 ////////
 class _ExerciseDetailScreen extends StatefulWidget {
-  final Exercise exercise;
+  final List<Exercise> exercises;
+  final int initialIndex;
 
   const _ExerciseDetailScreen({
-    required this.exercise,
+    required this.exercises,
+    required this.initialIndex,
     super.key,
   });
 
@@ -195,6 +190,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   bool _isPlaying = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  late int _currentIndex;
+  late Exercise _currentExercise;
+
   /// 시간표시 함수 ////
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -203,65 +201,116 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
     return '$minutes:$seconds';
   }
 
-
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
+    _currentExercise = widget.exercises[_currentIndex];
 
     // 오디오 포커스 설정: 영상 방해하지 않게
     _audioPlayer.setAudioContext(
-        AudioContext(android: const AudioContextAndroid(
+      AudioContext(
+        android: const AudioContextAndroid(
           isSpeakerphoneOn: true,
           stayAwake: false,
           contentType: AndroidContentType.music,
-          audioFocus: AndroidAudioFocus.none,  // 포커스 안 가져오게 설정
+          audioFocus: AndroidAudioFocus.none, // 포커스 안 가져오게 설정
         ),
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
-          options: {AVAudioSessionOptions.mixWithOthers},  // ios도 동시에 재생 허용
+          options: {AVAudioSessionOptions.mixWithOthers}, // ios도 동시에 재생 허용
         ),
-    ));
+      ),
+    );
 
-    if (widget.exercise.gifPath.endsWith('.mp4')) {
-      _controller = VideoPlayerController.asset(widget.exercise.gifPath);
-      _controller!.initialize().then((_) {
-        setState(() {});
-        _controller!.play();
-        _isPlaying = true;    // 상태반영
-      }).catchError((error) {
-      });
+    _initializeController();
+  }
+
+  void _initializeController() {
+    final path = _currentExercise.gifPath;
+    _controller?.dispose(); // 기존 컨트롤러 정리
+
+    if (path.endsWith('.mp4')) {
+      _controller = VideoPlayerController.asset(path)
+        ..initialize().then((_) {
+          if (!mounted) return;
+          setState(() {});
+          _controller!.play();
+          _isPlaying = true;
+        }).catchError((error) {
+          // 필요시 로깅
+        });
 
       _controller!.addListener(() {
-        if(mounted) setState(() {});
+        if (mounted) setState(() {});
       });
+    } else {
+      _controller = null;
+      setState(() {}); // 이미지 표시 위해 갱신
     }
+  }
+
+  void _goToNextExercise() {
+    if (_currentIndex < widget.exercises.length - 1) {
+      setState(() {
+        _currentIndex++;
+        _currentExercise = widget.exercises[_currentIndex];
+      });
+      _initializeController();
+    }
+  }
+
+  // 🆕 NEW: 오늘의 운동 완료 액션 (간단 팝업)
+  void _onCompleteTodayWorkout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("오늘의 운동 완료 🎉"),
+        content: const Text("모든 운동을 끝냈습니다! 수고하셨어요."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), // 팝업 닫기
+            child: const Text("확인"),
+          ),
+          // 필요하면 홈/이전 화면으로 이동:
+          // TextButton(
+          //   onPressed: () {
+          //     Navigator.pop(context); // 팝업
+          //     Navigator.pop(context); // 상세 → 리스트로
+          //   },
+          //   child: const Text("뒤로"),
+          // )
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
     _controller?.dispose();
-    /// 뒤로가기시 음성 중지
-    _audioPlayer.stop();
+    _audioPlayer.stop(); // 뒤로가기시 음성 중지
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLast = _currentIndex == widget.exercises.length - 1;
+
     return Scaffold(
-      backgroundColor: Color(0xFFE4F3E1),
+      backgroundColor: const Color(0xFFE4F3E1),
       appBar: AppBar(
-        backgroundColor: Color(0xFFE4F3E1),
+        backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
         leading: IconButton(
           onPressed: () => Navigator.pop(context),
-          icon: Icon(
+          icon: const Icon(
             Icons.arrow_back,
             color: Colors.black,
           ),
         ),
         title: Text(
-          widget.exercise.title,
-          style: TextStyle(
+          _currentExercise.title,
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 20.0,
             fontWeight: FontWeight.bold,
@@ -272,13 +321,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         // 팝업 형태로 도움말 띄우기
         actions: [
           IconButton(
-            onPressed: (){
+            onPressed: () {
               showDialog(
                 context: context,
-                builder: (context) => _HelpDialog(),
+                builder: (context) => const _HelpDialog(),
               );
             },
-            icon: Icon(
+            icon: const Icon(
               Icons.help_outline,
               color: Colors.black,
             ),
@@ -286,7 +335,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(
+        padding: const EdgeInsets.symmetric(
           horizontal: 24.0,
           vertical: 16.0,
         ),
@@ -295,104 +344,100 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
           children: [
             ////// 운동 동영상 위젯 + 버튼 //////////
             Center(
-              child: widget.exercise.gifPath.endsWith('.mp4')
+              child: _currentExercise.gifPath.endsWith('.mp4')
                   ? (_controller != null && _controller!.value.isInitialized
-                  ? Container(
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  children: [
-                    AspectRatio(
-                      aspectRatio: _controller!.value.aspectRatio,
-                      child: VideoPlayer(_controller!),
+                  ? Stack(
+                alignment: Alignment.bottomCenter,
+                children: [
+                  AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
+                    child: VideoPlayer(_controller!),
+                  ),
+                  // 컨트롤 바 //
+                  Container(
+                    color: Colors.transparent,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6.0,
+                      vertical: 6.0,
                     ),
-
-                    // 컨드롤 바 //
-                    Container(
-                      // color: Colors.black.withOpacity(0.4),   // 재생버튼,재생바 뒤에 있는 배경색
-                      color: Colors.transparent,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 6.0, vertical:  6.0,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // 아이콘 + 시간표시
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                if(_controller!.value.isPlaying){
-                                  _controller!.pause();
-                                  _isPlaying = false;
-                                } else {
-                                  _controller!.play();
-                                  _isPlaying = true;
-                                }
-                              });
-                            },
-                            icon: Icon(_isPlaying
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              if (_controller!.value.isPlaying) {
+                                _controller!.pause();
+                                _isPlaying = false;
+                              } else {
+                                _controller!.play();
+                                _isPlaying = true;
+                              }
+                            });
+                          },
+                          icon: Icon(
+                            _isPlaying
                                 ? Icons.pause_circle_filled
                                 : Icons.play_circle_fill,
-                              color: Colors.white,
-                              size: 30.0,
+                            color: Colors.white,
+                            size: 30.0,
+                          ),
+                        ),
+                        // 진행 바
+                        Expanded(
+                          child: VideoProgressIndicator(
+                            _controller!,
+                            allowScrubbing: true,
+                            colors: const VideoProgressColors(
+                              playedColor: Colors.red,
+                              bufferedColor: Colors.grey,
+                              backgroundColor: Colors.grey,
                             ),
                           ),
-
-                          // 진행 바
-                          Expanded(
-                            child: VideoProgressIndicator(
-                              _controller!,
-                              allowScrubbing: true,
-                              colors: VideoProgressColors(
-                                playedColor: Colors.red,
-                                bufferedColor: Colors.grey,
-                                backgroundColor: Colors.grey,
-                              ),
-                            ),
+                        ),
+                        const SizedBox(width: 12.0),
+                        // 시간표시
+                        Text(
+                          '${_formatDuration(_controller!.value.position)} / ${_formatDuration(_controller!.value.duration)}',
+                          style: const TextStyle(
+                            color: Colors.white,
                           ),
-
-                          SizedBox(width: 12.0),
-
-                          // 시간표시
-                          Text('${_formatDuration(_controller!.value.position)} /'
-                              '${_formatDuration(_controller!.value.duration)}',
-                            style: TextStyle(
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-
-                  ],
-                ),
+                  ),
+                ],
               )
-                  : CircularProgressIndicator())
-                  : Image.asset(widget.exercise.gifPath),
+                  : const CircularProgressIndicator())
+                  : Image.asset(_currentExercise.gifPath),
             ),
-            // 나중에 Image.asset(exercise.gifPath)로 교체
 
-            SizedBox(height: 30.0),
+            const SizedBox(height: 30.0),
 
             // 운동 설명
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: widget.exercise.description.asMap().entries.map((entry) {
+              children:
+              _currentExercise.description.asMap().entries.map((entry) {
                 final idx = entry.key + 1;
                 final text = entry.value;
 
                 // '시작자세: 팔을...' 형식 분리
                 final parts = text.split(':');
-                final title = parts.length > 1 ? parts[0].trim() : '설명';
-                final body = parts.length > 1 ? parts.sublist(1).join(':').trim() : text;
+                final title =
+                parts.length > 1 ? parts[0].trim() : '설명';
+                final body = parts.length > 1
+                    ? parts.sublist(1).join(':').trim()
+                    : text;
 
                 return Container(
-                  margin: EdgeInsets.only(bottom: 12),
-                  padding: EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.black12),
-                    boxShadow: [
+                    boxShadow: const [
                       BoxShadow(
                         color: Colors.black12,
                         blurRadius: 4,
@@ -405,16 +450,16 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                     children: [
                       Text(
                         '$idx. $title',
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16.0,
                           color: Colors.black87,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
                         body,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 15.0,
                           color: Colors.black87,
                           height: 1.4,
@@ -426,40 +471,118 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
               }).toList(),
             ),
 
-            SizedBox(height: 40.0),
+            const SizedBox(height: 40.0),
 
-            // 운동하기 버튼
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                minimumSize: Size(200, 50),    // 버튼 넓이
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 12.0,
+            // 🔧"운동하기" + "다음/오늘의 운동 완료" 버튼을 나란히 배치
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 운동하기 버튼
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(150, 50),
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0,
+                      vertical: 12.0,
+                    ),
+                  ),
+                  onPressed: () async {
+                    try {
+                      // 운동 기록 저장
+                      final today = DateTime.now();
+                      final exerciseName = _currentExercise.title;
+                      Provider.of<ExerciseLog>(context, listen: false)
+                          .addExercise(today, exerciseName);
+
+                      // 오디오 재생
+                      await _audioPlayer.play(AssetSource('vo1-1.mp3'));
+                      // print('운동타이머 출력됨!');
+                    } catch (e) {
+                      // print('오디오 재생오류:$e');
+                    }
+                  },
+                  child: const Text('운동하기'),
                 ),
-              ),
-              onPressed: () async {
-                try{
-                  ///// 운동 기록 저장 //////
-                  final today = DateTime.now();
-                  final exerciseName = widget.exercise.title;
-                  Provider.of<ExerciseLog>(context, listen: false).addExercise(today, exerciseName);
 
-                  //// 나중에 TTS 또는 오디오 재생 /////
-                  await _audioPlayer.play(AssetSource('vo1-1.mp3'));
-                  print('운동타이머 출력됨!');
-                } catch (e) {
-                  print('오디오 재생오류:$e');}
-              },
-              child: Text('운동하기'),
+                const SizedBox(width: 16),
+
+                // 다음 / 오늘의 운동 완료
+                if (!isLast)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 50),
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: _goToNextExercise,
+                    child: const Text('다음'),
+                  )
+                else
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(150, 50),
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: Color(0xFFE4F3E1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16.0),
+                          ),
+                          title: const Text(
+                              "오늘의 운동 완료 🎉",
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          content: const Text(
+                              "모든 운동을 끝냈습니다! 수고하셨어요.",
+                            style: TextStyle(
+                              color: Colors.black87,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () {
+                                // 팝업 닫기
+                                Navigator.pop(context);
+                                // 메인 화면(첫 화면)까지 이동
+                                Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const DailyScreen()),
+                                    (route) => route.isFirst,
+                                );
+                              },
+                              child: const Text("확인"),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: const Text('오늘의 운동 완료'),
+                  ),
+              ],
             ),
 
             const SizedBox(height: 24),
+
             // 출처 표시
-            Text(
+            const Text(
               '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>',
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
           ],
@@ -479,12 +602,13 @@ class _HelpDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
       ),
-      insetPadding: EdgeInsets.all(30.0),  // 팝업 크기 설정
+      insetPadding: const EdgeInsets.all(30.0), // 팝업 크기 설정
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18.0),
-          boxShadow: [   // 그림자 효과
+          boxShadow: [
+            // 그림자 효과
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
               spreadRadius: 3.0,
@@ -492,11 +616,11 @@ class _HelpDialog extends StatelessWidget {
             ),
           ],
         ),
-        padding: EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: const [
             Text(
               '사용 안내',
               style: TextStyle(
@@ -505,58 +629,25 @@ class _HelpDialog extends StatelessWidget {
                 color: Colors.black87,
               ),
             ),
-            SizedBox(height: 20.0,),
-            Text(
-              '1. 운동시작 전에 영상과 운동방법을 보고 숙지해주세요.',
-              style: TextStyle(fontSize: 16.0),
-            ),
-            SizedBox(height: 10.0,),
-            Text(
-              '2. 숙지한 후에 운동하기 버튼을 눌러주세요.',
-              style: TextStyle(fontSize: 16.0),
-            ),
-            SizedBox(height: 10.0,),
-            Text(
-              '3. 버튼을 누르면 삐삐- 타이머 소리가 나오니 맞춰서 운동해주세요.',
-              style: TextStyle(fontSize: 16.0),
-            ),
-            SizedBox(height: 10.0,),
-            Text(
-              '4. 운동 중에는 올바른 자세를 유지하며, 무리하지 않도록 주의해주세요.',
-              style: TextStyle(fontSize: 16.0),
-            ),
-            SizedBox(height: 20.0,),
-
-            //////// 닫기 버튼
-            Align(
-              alignment: Alignment.center,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: Colors.grey,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30.0),   // 버튼 둥굴게
-                  ),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 40.0,
-                    vertical: 12.0,
-                  ),
-                ),
-                onPressed: (){
-                  Navigator.pop(context);
-                },
-                child: Text('닫기'),
-              ),
-            ),
+            SizedBox(height: 20.0),
+            Text('1. 운동시작 전에 영상과 운동방법을 보고 숙지해주세요.',
+                style: TextStyle(fontSize: 16.0)),
+            SizedBox(height: 10.0),
+            Text('2. 숙지한 후에 운동하기 버튼을 눌러주세요.',
+                style: TextStyle(fontSize: 16.0)),
+            SizedBox(height: 10.0),
+            Text('3. 버튼을 누르면 삐삐- 타이머 소리가 나오니 맞춰서 운동해주세요.',
+                style: TextStyle(fontSize: 16.0)),
+            SizedBox(height: 10.0),
+            Text('4. 운동 중에는 올바른 자세를 유지하며, 무리하지 않도록 주의해주세요.',
+                style: TextStyle(fontSize: 16.0)),
+            SizedBox(height: 20.0),
           ],
         ),
       ),
     );
   }
 }
-
-
-
 
 ////// 날짜별 운동 기록 저장 //////
 class ExerciseLog extends ChangeNotifier {
@@ -575,18 +666,16 @@ class ExerciseLog extends ChangeNotifier {
     notifyListeners();
   }
 
-///// 특정 날짜의 운동 목록 반화 //////
+  ///// 특정 날짜의 운동 목록 반환 //////
   List<String> getExercisesForDay(DateTime date) {
     final key = _formatDate(date);
     return _log[key] ?? [];
   }
 
   String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day
-        .toString().padLeft(2, '0')}';
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }
-
 
 ///// 탭 상태 /////
 class ExerciseTab extends StatefulWidget {
@@ -605,32 +694,37 @@ class _ExerciseTabState extends State<ExerciseTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    final exercisesForTab = widget.exerciseNames.map((name) {
+      return exercises.firstWhere(
+            (ex) => ex.title == name,
+        orElse: () => Exercise(
+          title: name,
+          gifPath: 'asset/placeholder.png',
+          description: const ['운동 설명이 없습니다.'],
+          voiceGuide: '',
+        ),
+      );
+    }).toList();
+
     return ListView.builder(
-      itemCount: widget.exerciseNames.length,
+      itemCount: exercisesForTab.length,
       itemBuilder: (context, index) {
-        final exerciseName = widget.exerciseNames[index];
+        final exercise = exercisesForTab[index];
         return GestureDetector(
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => _ExerciseDetailScreen(
-                  // ⚠️ 여기서 exercise 찾을 때 index 말고 이름 기준으로 찾아야 안전해요
-                  exercise: exercises.firstWhere(
-                        (ex) => ex.title == exerciseName,
-                    orElse: () => Exercise(
-                      title: exerciseName,
-                      gifPath: '',
-                      description: ['운동 설명이 없습니다.'],
-                      voiceGuide: '',
-                    ),
-                  ),
+                  exercises: exercisesForTab,
+                  initialIndex: index,
                 ),
               ),
             );
           },
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10.0),
+            padding: const EdgeInsets.symmetric(horizontal: 10.0),
             child: Row(
               children: [
                 Padding(
@@ -651,10 +745,10 @@ class _ExerciseTabState extends State<ExerciseTab>
                     ),
                   ),
                 ),
-                SizedBox(width: 16.0),
+                const SizedBox(width: 16.0),
                 Text(
-                  exerciseName,
-                  style: TextStyle(
+                  exercise.title,
+                  style: const TextStyle(
                     fontSize: 20.0,
                     fontWeight: FontWeight.w600,
                   ),
@@ -667,5 +761,3 @@ class _ExerciseTabState extends State<ExerciseTab>
     );
   }
 }
-
-
