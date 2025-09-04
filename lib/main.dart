@@ -10,8 +10,9 @@ import 'package:finalproject/alarm_list_page.dart';
 import 'package:finalproject/posture_service.dart'; // Firebase 자세 점수 서비스
 import 'package:intl/date_symbol_data_local.dart';
 import 'daily_screen.dart';
-import 'package:finalproject/scr/tracking_page.dart';
+import 'package:finalproject/scr/tracking_page.dart' as tracking;
 import 'package:finalproject/scr/splash.dart';
+import 'package:finalproject/posture_pal_page.dart' as posture;
 import 'dart:async';
 
 List<CameraDescription> cameras = [];
@@ -73,12 +74,12 @@ class MyApp extends StatelessWidget {
             );
           }
 
-          return AuthWrapper();
+          return const AuthWrapper();
         },
       ),
       routes: {
-        '/home': (context) => HomeScreen(),
-        '/auth': (context) => AuthScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/auth': (context) => const AuthScreen(),
       },
     );
   }
@@ -102,9 +103,9 @@ class AuthWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          return HomeScreen();
+          return const HomeScreen();
         } else {
-          return AuthScreen();
+          return const AuthScreen();
         }
       },
     );
@@ -194,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 32),
 
-              // Firebase 실시간 자세 점수 표시
+              // Firebase 실시간 자세 점수 표시 - 수정된 부분
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
@@ -209,19 +210,100 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: StreamBuilder<double>(
-                  stream: _postureService.getPostureScoreStream(),
+                child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: _postureService.getTodayPostureStream(),  // 오늘 날짜로 자동 설정됨
                   builder: (context, snapshot) {
-                    final score = snapshot.data ?? 0.0;
+                    // 연결 상태 확인
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: '자세 점수를 불러오는 중...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
 
-                    // 점수 색상
+                    // 오류 처리
+                    if (snapshot.hasError) {
+                      return RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: '자세 점수 로딩 중 오류 발생',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.red,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // 안전하게 점수 추출
+                    double score = 0.0;
+                    try {
+                      if (snapshot.hasData &&
+                          snapshot.data!.exists &&
+                          snapshot.data!.data() != null) {
+                        final data = snapshot.data!.data()!;
+                        final scoreValue = data['score'];
+                        if (scoreValue != null && scoreValue is num) {
+                          score = scoreValue.toDouble();
+                        }
+                      }
+                    } catch (e) {
+                      debugPrint('점수 추출 오류: $e');
+                      score = 0.0;
+                    }
+
+                    // 점수에 따른 색상 결정
                     Color scoreColor;
+                    String scoreMessage;
+
                     if (score >= 80) {
                       scoreColor = Colors.green[700]!;
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (훌륭해요!)';
                     } else if (score >= 60) {
                       scoreColor = Colors.orange[700]!;
-                    } else {
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (괜찮아요!)';
+                    } else if (score > 0) {
                       scoreColor = Colors.red[700]!;
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (개선이 필요해요)';
+                    } else {
+                      scoreColor = Colors.grey[600]!;
+                      scoreMessage = '아직 자세 측정 기록이 없어요';
                     }
 
                     return RichText(
@@ -238,7 +320,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           TextSpan(
-                            text: '자세 점수 ${score.toStringAsFixed(1)}점',
+                            text: scoreMessage,
                             style: TextStyle(
                               fontSize: 16,
                               color: scoreColor,
@@ -267,8 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => PosturePalPage(),
+                          MaterialPageRoute(builder: (context) => const posture.PosturePalPage(),
                           ),
                         );
                       },
@@ -282,7 +363,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => DailyScreen(),
+                            builder: (context) => const DailyScreen(),
                           ),
                         );
                       },
@@ -324,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => SettingScreen(),
+                            builder: (context) => SettingScreen(), // const 제거
                           ),
                         );
                       },
@@ -341,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// 👉 여기 안으로 넣어야 context 사용 가능
+  /// 메뉴 버튼 생성 함수
   Widget _buildMenuButton({
     required IconData icon,
     required String label,

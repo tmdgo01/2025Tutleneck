@@ -1,10 +1,10 @@
-import 'dart:async'; // <--- 추가된 부분: Timer 사용을 위해
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:finalproject/posture_service.dart'; // <--- 추가된 부분: PostureService 임포트
+import 'package:finalproject/posture_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
