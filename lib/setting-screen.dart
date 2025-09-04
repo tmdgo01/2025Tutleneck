@@ -195,7 +195,7 @@ class _NightAlarmSettingScreenState extends State<_NightAlarmSettingScreen> {
               child: const Text("변경"),
             ),
           ),
-            const SizedBox(height: 30),
+          const SizedBox(height: 30),
 
           // 저장 버튼
           Center(

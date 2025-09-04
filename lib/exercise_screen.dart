@@ -99,57 +99,84 @@ class ExerciseScreen extends StatelessWidget {
                         itemCount: tabExercises.length,
                         itemBuilder: (context, index) {
                           final exercise = tabExercises[index];
+                          final todayExercises = Provider.of<ExerciseLog>(context).getExercisesForDay(DateTime.now());
+
+                          // 운동 활성화인지 판단
+                          final isUnlocked = index == 0 || todayExercises.contains(tabExercises[index - 1].title);
+                          final isCompleted = todayExercises.contains(exercise.title);
+
                           return GestureDetector(
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => _ExerciseDetailScreen(
-                                    exercises: tabExercises, // 해당 탭 전체 리스트
-                                    initialIndex: index, // 선택한 인덱스
+                              if(isUnlocked) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => _ExerciseDetailScreen(
+                                      exercises: tabExercises, // 해당 탭 전체 리스트
+                                      initialIndex: index, // 선택한 인덱스
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              } else {
+                                // 아직 이전 운동 완료하지 않았을 때 팝업 알림
+                                showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: Text("운동 순서 안내"),
+                                      content: Text("이전 운동을 먼저 완료해주세요!"),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: Text("확인"),
+                                        ),
+                                      ],
+                                    ),
+                                );
+                              }
                             },
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10.0),
-                              child: Row(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Container(
-                                      width: 60.0,
-                                      height: 60.0,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: Colors.white,
-                                      ),
-                                      child: Center(
-                                        child: Image.asset(
-                                          'asset/1.png',
-                                          width: 40.0,
-                                          height: 40.0,
-                                          fit: BoxFit.contain,
+                              child: Opacity(
+                                opacity: isUnlocked ? 1.0 : 0.4,  // 잠긴 운동은 흐리게
+                                child: Row(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(8.0),
+                                      child: Container(
+                                        width: 60.0,
+                                        height: 60.0,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(10),
+                                          color: Colors.white,
+                                        ),
+                                        child: Center(
+                                          child: Image.asset(
+                                            'asset/1.png',
+                                            width: 40.0,
+                                            height: 40.0,
+                                            fit: BoxFit.contain,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16.0),
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Text(
-                                        exercise.title,
-                                        style: const TextStyle(
-                                          fontSize: 20.0,
-                                          fontWeight: FontWeight.w600,
-                                          overflow: TextOverflow.ellipsis
+                                    const SizedBox(width: 16.0),
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: Text(
+                                          exercise.title,
+                                          style: TextStyle(
+                                            fontSize: 20.0,
+                                            fontWeight: FontWeight.w600,
+                                            overflow: TextOverflow.ellipsis,
+                                            color: isCompleted ? Colors.green : Colors.black,  // 완료된 운동은 초록색 표시
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           );
@@ -189,6 +216,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
 
   late int _currentIndex;
   late Exercise _currentExercise;
+
+  // 운동 시작 상태 변수
+  bool _hasStartedExercise = false;
 
   /// 시간표시 함수 ////
   String _formatDuration(Duration duration) {
@@ -252,6 +282,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
       setState(() {
         _currentIndex++;
         _currentExercise = widget.exercises[_currentIndex];
+        _hasStartedExercise = false; // 상태 초기화
       });
       _initializeController();
     }
@@ -500,6 +531,11 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
 
                       // 오디오 재생
                       await _audioPlayer.play(AssetSource('vo1-1.mp3'));
+
+                      // 상태 갱신 추가
+                      setState(() {
+                        _hasStartedExercise = true;
+                      });
                       // print('운동타이머 출력됨!');
                     } catch (e) {
                       // print('오디오 재생오류:$e');
@@ -515,13 +551,15 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(150, 50),
-                      backgroundColor: Colors.green,
+                      backgroundColor: _hasStartedExercise ? Colors.green : Colors.grey,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: () {
+                    onPressed: _hasStartedExercise ?
+                        () {
                       _audioPlayer.stop();  // <-- 오디오 정지 추가
                       _goToNextExercise();
-                    },
+                    }
+                    : null,
                     child: const Text('다음'),
                   )
                 else
@@ -531,7 +569,8 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: () {
+                    onPressed: _hasStartedExercise ?
+                        () {
                       _audioPlayer.stop();
                       showDialog(
                         context: context,
@@ -577,11 +616,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                           ],
                         ),
                       );
-                    },
+                    }
+                    : null,
                     child: const Text('오늘의 운동 완료'),
                   ),
               ],
             ),
+
 
             const SizedBox(height: 24),
 
