@@ -435,25 +435,25 @@ class _PosturePalPageState extends State<PosturePalPage> {
             tooltip: '키포인트 표시',
           ),
           // 개발/테스트용 리셋 버튼
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'reset') {
-                _resetTodayStats();
-              }
-            },
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem<String>(
-                value: 'reset',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('통계 초기화'),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          // PopupMenuButton<String>(
+          //   onSelected: (value) {
+          //     if (value == 'reset') {
+          //       _resetTodayStats();
+          //     }
+          //   },
+          //   itemBuilder: (BuildContext context) => [
+          //     const PopupMenuItem<String>(
+          //       value: 'reset',
+          //       child: Row(
+          //         children: [
+          //           Icon(Icons.refresh, color: Colors.red),
+          //           SizedBox(width: 8),
+          //           Text('통계 초기화'),
+          //         ],
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
       body: _cameraController == null || !_cameraController!.value.isInitialized

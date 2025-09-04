@@ -17,7 +17,7 @@ class AlarmSettingsPage extends StatefulWidget {
 }
 
 class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
-  final List<String> _labels = ['목', '어깨', '등'];
+  final List<String> _labels = ['일상 스트레칭', '증상 완화 운동', '폼롤러 운동'];
   String? _selectedLabel;
   List<bool> activeDays = List.generate(7, (_) => false);
   final List<String> dayLabels = ['일','월','화','수','목','금','토'];
@@ -332,7 +332,7 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 운동 부위 선택
-            const Text('운동 부위', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            const Text('운동 종류', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -344,7 +344,7 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: _selectedLabel,
-                  hint: const Text('부위를 선택하세요'),
+                  hint: const Text('종류를 선택하세요'),
                   items: _labels.map((label) => DropdownMenuItem(value: label, child: Text(label))).toList(),
                   onChanged: (value) => setState(() => _selectedLabel = value),
                 ),

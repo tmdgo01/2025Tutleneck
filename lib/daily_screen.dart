@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// exercise_screen.dart import 제거 (사용하지 않음)
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -98,13 +96,13 @@ class _DailyScreenState extends State<DailyScreen> {
   /// 상세 메시지 반환 (누락된 함수 추가)
   String _getDetailedMessage(double score) {
     if (score >= 90) {
-      return '정말 훌륭한 자세를 유지하고 계시네요! 계속해서 바른 자세를 유지해주세요.';
+      return '정말 훌륭한 자세를 유지하고 계시네요! 계속해서 바른 자세를 유지해보세요.';
     } else if (score >= 80) {
-      return '좋은 자세입니다! 조금 더 신경쓰시면 완벽한 자세를 유지할 수 있어요.';
+      return '좋은 자세예요! 조금 더 신경쓰시면 완벽한 자세를 유지할 수 있어요.';
     } else if (score >= 60) {
-      return '보통 수준의 자세입니다. 조금 더 바른 자세에 신경써주세요.';
+      return '보통 수준의 자세예요. 조금 더 바른 자세에 신경써주세요.';
     } else if (score > 0) {
-      return '자세 개선이 필요합니다. 목과 어깨를 바르게 펴고 앉아주세요.';
+      return '자세 개선이 필요해요. 목과 어깨를 바르게 펴고 앉아주세요.';
     } else {
       return '아직 측정된 데이터가 없습니다.';
     }

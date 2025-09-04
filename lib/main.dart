@@ -1,5 +1,5 @@
 import 'package:finalproject/exercise_screen.dart';
-import 'package:finalproject/setting-screen.dart';
+import 'package:finalproject/setting_screen.dart';
 import 'package:finalproject/auth_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';

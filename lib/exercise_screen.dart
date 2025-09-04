@@ -10,36 +10,29 @@ class ExerciseScreen extends StatelessWidget {
 
   // 탭별 운동 이름
   final Map<String, List<String>> rawExerciseData = {
-    '풀 운동': [
-      '상하 호흡운동',
-      '목 정렬 운동',
-      '목 스트레칭:전방',
-      '목 스트레칭:후방',
-      '목 스트레칭:외측',
-      '목 스트레칭:외측2',
-      '목 돌리기',
-      '목 돌리기2',
-      '어깨 돌리기',
-      '어깨 스트레칭',
-      '어깨, 가슴, 등 스트레칭',
+    '일상 스트레칭': [
+      '턱 당기기',
+      '목 강화 운동1 (선 자세)',
+      '목 강화 운동2',
+      '목 스트레칭1(앉은 자세)',
+      '목 스트레칭2(앉은 자세)',
+      '좌,우 목 돌리기',
+      '원 방향 목 돌리기',
     ],
-    '간편 운동1': [
-      '상하 호흡운동',
-      '목 정렬 운동',
-      '목 돌리기',
-      '목 돌리기2',
-      '어깨 돌리기',
-      '어깨 스트레칭',
-      '어깨, 가슴, 등 스트레칭',
+    '증상 완화 운동': [
+      '벽 밀기 (대흉근 스트레칭)',
+      '가슴 스트레칭(소흉근 스트레칭)',
+      '목 강화 운동1',
+      'W/Y/T 자세 운동',
+      'Cat–Cow (척추 가동성 운동)',
     ],
-    '간편 운동2': [
-      '목 정렬 운동',
-      '목 스트레칭:전방',
-      '목 스트레칭:후방',
-      '목 스트레칭:외측',
-      '목 스트레칭:외측2',
-      '어깨 스트레칭',
-      '어깨, 가슴, 등 스트레칭',
+    '폼롤러 운동': [
+      '척추기립근 스트레칭',
+      '뒤통수 아래 스트레칭 (후두 하근 스트레칭)',
+      '폼롤러 체스트 오픈',
+      '목 스트레칭',
+      '등 전체 폼롤러 스트레칭',
+      '소흉근 스트레칭',
     ],
   };
 
@@ -52,6 +45,7 @@ class ExerciseScreen extends StatelessWidget {
         gifPath: 'asset/placeholder.png',
         description: ['설명 없음'],
         voiceGuide: '',
+        source: '',
       ),
     );
   }
@@ -72,10 +66,6 @@ class ExerciseScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: const Color(0xFFE4F3E1),
           elevation: 0,
-          leading: IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back, color: Colors.black),
-          ),
           // 탭 제목이 많으면 자동 스크롤 가능하도록
           bottom: TabBar(
             isScrollable: true,
@@ -145,11 +135,17 @@ class ExerciseScreen extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 16.0),
-                                  Text(
-                                    exercise.title,
-                                    style: const TextStyle(
-                                      fontSize: 20.0,
-                                      fontWeight: FontWeight.w600,
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Text(
+                                        exercise.title,
+                                        style: const TextStyle(
+                                            fontSize: 20.0,
+                                            fontWeight: FontWeight.w600,
+                                            overflow: TextOverflow.ellipsis
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -266,7 +262,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text("오늘의 운동 완료 🎉"),
-        content: const Text("모든 운동을 끝냈습니다! 수고하셨어요."),
+        content: const Text("모든 운동을 끝냈습니다! 수고하셨습니다."),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context), // 팝업 닫기
@@ -302,18 +298,23 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            Navigator.pop(context);
+          },
           icon: const Icon(
             Icons.arrow_back,
             color: Colors.black,
           ),
         ),
-        title: Text(
-          _currentExercise.title,
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 20.0,
-            fontWeight: FontWeight.bold,
+        title: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Text(
+            _currentExercise.title,
+            style: const TextStyle(
+              color: Colors.black,
+              fontSize: 20.0,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         centerTitle: true,
@@ -516,7 +517,10 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: _goToNextExercise,
+                    onPressed: () {
+                      _audioPlayer.stop();  // <-- 오디오 정지 추가
+                      _goToNextExercise();
+                    },
                     child: const Text('다음'),
                   )
                 else
@@ -527,22 +531,26 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
+                      _audioPlayer.stop();
+
+                      // AlertDialog 띄우기
                       showDialog(
                         context: context,
-                        builder: (_) => AlertDialog(
-                          backgroundColor: Color(0xFFE4F3E1),
+                        barrierDismissible: false, // 바깥 영역 터치로 닫히지 않게
+                        builder: (context) => AlertDialog(
+                          backgroundColor: const Color(0xFFE4F3E1),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16.0),
                           ),
                           title: const Text(
-                              "오늘의 운동 완료 🎉",
+                            "오늘의 운동 완료 🎉",
                             style: TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           content: const Text(
-                              "모든 운동을 끝냈습니다! 수고하셨어요.",
+                            "모든 운동을 끝냈습니다! 수고하셨습니다. 일지로 이동합니다.",
                             style: TextStyle(
                               color: Colors.black87,
                             ),
@@ -557,13 +565,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                                 ),
                               ),
                               onPressed: () {
-                                // 팝업 닫기
-                                Navigator.pop(context);
-                                // 메인 화면(첫 화면)까지 이동
-                                Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const DailyScreen()),
-                                    (route) => route.isFirst,
+                                // ① 팝업 먼저 닫기
+                                Navigator.of(context).pop();
+
+                                // ② DailyScreen으로 이동하면서 이전 화면 모두 제거
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(builder: (context) => const DailyScreen()),
+                                      (route) => false,
                                 );
                               },
                               child: const Text("확인"),
@@ -580,10 +588,17 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             const SizedBox(height: 24),
 
             // 출처 표시
-            const Text(
-              '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-              textAlign: TextAlign.center,
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                _currentExercise.source,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
           ],
         ),
@@ -675,7 +690,30 @@ class ExerciseLog extends ChangeNotifier {
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
+
+  /// 오늘 운동 횟수 반환
+  int get todayCount {
+    final todayKey = _formatDate(DateTime.now());
+    return _log[todayKey]?.length ?? 0;
+  }
+
+  /// 최근 7일간 운동한 일수 반환
+  int get weeklyExerciseDays {
+    final now = DateTime.now();
+    int count = 0;
+    for (int i = 0; i < 7; i++) {
+      final day = now.subtract(Duration(days: i));
+      final key = _formatDate(day);
+      if (_log.containsKey(key) && (_log[key]?.isNotEmpty ?? false)) {
+        count++;
+      }
+    }
+    return count;
+  }
 }
+
+
+
 
 ///// 탭 상태 /////
 class ExerciseTab extends StatefulWidget {
@@ -703,6 +741,7 @@ class _ExerciseTabState extends State<ExerciseTab>
           gifPath: 'asset/placeholder.png',
           description: const ['운동 설명이 없습니다.'],
           voiceGuide: '',
+          source: '',
         ),
       );
     }).toList();

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -35,18 +36,30 @@ class _AuthScreenState extends State<AuthScreen> {
     });
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+
       if (isLogin) {
         // 로그인
         await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
+
+        // ✅ 로그인 성공 후 SharedPreferences 초기값 저장
+        if (!prefs.containsKey('postureTargetScore')) {
+          await prefs.setInt('postureTargetScore', 80); // 예시 초기값
+        }
+        if (!prefs.containsKey('weeklyMeasurementDays')) {
+          await prefs.setInt('weeklyMeasurementDays', 5); // 예시 초기값
+        }
+
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/home');
         }
       } else {
         // 회원가입
-        UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        UserCredential userCredential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
@@ -63,7 +76,12 @@ class _AuthScreenState extends State<AuthScreen> {
         });
 
         // Firebase Auth에 사용자 이름 업데이트
-        await userCredential.user!.updateDisplayName(_nameController.text.trim());
+        await userCredential.user!
+            .updateDisplayName(_nameController.text.trim());
+
+        // ✅ 회원가입 후 SharedPreferences 초기값 저장
+        await prefs.setInt('postureTargetScore', 80);
+        await prefs.setInt('weeklyMeasurementDays', 5);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -98,7 +116,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } catch (e) {
-      // Firestore 오류 처리
+      // Firestore 또는 SharedPreferences 오류 처리
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -115,6 +133,7 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
