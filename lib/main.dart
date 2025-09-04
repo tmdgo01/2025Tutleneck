@@ -12,6 +12,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'daily_screen.dart';
 import 'package:finalproject/scr/tracking_page.dart';
 import 'package:finalproject/scr/splash.dart';
+import 'dart:async';
 
 List<CameraDescription> cameras = [];
 
@@ -165,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // 로고
               Column(
                 children: [
-                  Container(
+                  SizedBox(
                     width: 190,
                     child: Image.asset(
                       'asset/logo.png',
@@ -213,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, snapshot) {
                     final score = snapshot.data ?? 0.0;
 
-                    // 점수에 따른 색상 결정
+                    // 점수 색상
                     Color scoreColor;
                     if (score >= 80) {
                       scoreColor = Colors.green[700]!;
@@ -227,9 +228,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       textAlign: TextAlign.center,
                       text: TextSpan(
                         children: [
-                          // 사용자 이름 부분 (검은색 고정)
                           TextSpan(
-                            text: '${userName} 님!\n',
+                            text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.black87,
@@ -237,7 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          // 자세 점수 부분 (점수에 따라 색상 변경)
                           TextSpan(
                             text: '자세 점수 ${score.toStringAsFixed(1)}점',
                             style: TextStyle(
@@ -256,7 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 32),
 
-              // 메뉴 버튼들
+              // 메뉴 버튼
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -274,9 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
                     const SizedBox(height: 16),
-
                     _buildMenuButton(
                       icon: Icons.calendar_month,
                       label: '일지',
@@ -290,9 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
                     const SizedBox(height: 16),
-
                     _buildMenuButton(
                       icon: Icons.fitness_center,
                       label: '운동',
@@ -306,9 +301,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
                     const SizedBox(height: 16),
-
                     _buildMenuButton(
                       icon: Icons.access_alarms_outlined,
                       label: '알람',
@@ -322,9 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
                     const SizedBox(height: 16),
-
                     _buildMenuButton(
                       icon: Icons.settings,
                       label: '설정',
@@ -333,7 +324,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => Settingscreen(),
+                            builder: (context) => SettingScreen(),
                           ),
                         );
                       },
@@ -350,6 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// 👉 여기 안으로 넣어야 context 사용 가능
   Widget _buildMenuButton({
     required IconData icon,
     required String label,
@@ -372,15 +364,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        child: Center( // <-- Center로 감싸서 내부 내용 중앙 정렬
+        child: Center(
           child: Row(
-            mainAxisSize: MainAxisSize.min, // Row 크기를 최소로 줄여서 중앙 정렬 가능
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 24,
-                color: Colors.black87,
-              ),
+              Icon(icon, size: 24, color: Colors.black87),
               const SizedBox(width: 16),
               Text(
                 label,
