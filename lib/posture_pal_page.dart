@@ -4,7 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
-import 'package:finalproject/posture_service.dart'; // PostureService import
+import 'package:finalproject/posture_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -21,57 +21,96 @@ class _PosturePalPageState extends State<PosturePalPage> {
   late PoseDetector _poseDetector;
   bool _isBusy = false;
 
-  // PosturePal 기반 상태 변수들
   final List<String> _postureHistory = [];
   final List<List<double>> _vectorHistory = [];
   String _currentPosture = "분석중...";
-  String _previousPosture = "정상";
   double _confidence = 0.0;
   int _badPostureCount = 0;
 
-  DateTime? _startTime;
-  int _totalTrackedSeconds = 0;
-  List<PoseLandmark> _landmarksToDraw = [];
   Offset? _neckPoint;
+  List<PoseLandmark> _landmarksToDraw = [];
+  Size? _imageSize;
   bool _alertEnabled = true;
   bool _showOffsets = false;
-  Size? _imageSize;
 
+  // 하루 누적 통계 (앱을 재시작해도 이어짐)
   Map<String, int> _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+  DateTime _currentDate = DateTime.now();
+  bool _isLoadingStats = true; // 기존 통계 로딩 상태
 
-  // Firebase 서비스
+  // Firebase
   final PostureService _postureService = PostureService();
   Timer? _saveTimer;
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
     _poseDetector = PoseDetector(options: PoseDetectorOptions());
-    _startTime = DateTime.now();
-    _startSavingTimer();
+    _loadTodayStatsAndInitialize(); // 기존 통계를 불러온 후 초기화
   }
 
-  /// 1초마다 현재 자세 점수를 계산하고 Firebase에 저장하는 타이머 시작
+  /// 오늘의 기존 통계를 불러오고 카메라 초기화
+  Future<void> _loadTodayStatsAndInitialize() async {
+    try {
+      // Firebase에서 오늘의 기존 통계 불러오기
+      final todayStats = await _postureService.getTodayStats();
+
+      setState(() {
+        _postureStats = todayStats;
+        _isLoadingStats = false;
+      });
+
+      debugPrint('오늘 기존 통계 로딩 완료: $_postureStats');
+
+      // 기존 통계를 불러온 후 카메라와 타이머 시작
+      await _initializeCamera();
+      _startSavingTimer();
+
+    } catch (e) {
+      debugPrint('통계 로딩 실패: $e');
+      setState(() {
+        _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+        _isLoadingStats = false;
+      });
+
+      // 에러가 나도 카메라는 시작
+      await _initializeCamera();
+      _startSavingTimer();
+    }
+  }
+
+  /// 하루 단위 자동 리셋 및 Firebase 저장
   void _startSavingTimer() {
     _saveTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // 전체 프레임 수 계산
+      final now = DateTime.now();
+
+      // 자정이 지나면 통계 자동 리셋
+      if (!_isSameDate(now, _currentDate)) {
+        debugPrint('새로운 날! 통계 초기화: ${now.toIso8601String()}');
+        setState(() {
+          _currentDate = now;
+          _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+        });
+      }
+
       final totalFrames = _postureStats.values.fold(0, (prev, count) => prev + count);
       if (totalFrames == 0) return;
 
-      // '정상' 자세 비율을 100점 만점 점수로 변환
       final normalCount = _postureStats['정상'] ?? 0;
       final double currentScore = (normalCount / totalFrames) * 100.0;
 
-      // PostureService를 사용해 점수와 통계 저장
+      // Firebase에 실시간 저장
       _postureService.savePostureScore(
         score: currentScore,
-        stats: Map<String, int>.from(_postureStats), // 복사본 생성
+        stats: Map<String, int>.from(_postureStats),
       );
     });
   }
 
-  /// 전면 카메라 초기화
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -105,26 +144,20 @@ class _PosturePalPageState extends State<PosturePalPage> {
     }
   }
 
-  /// 플랫폼별 이미지 회전값 계산
   InputImageRotation _getImageRotation() {
     if (_cameraController == null) return InputImageRotation.rotation0deg;
-
     final camera = _cameraController!.description;
     return InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
         InputImageRotation.rotation0deg;
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
-    if (_isBusy || !mounted) return;
+    if (_isBusy || !mounted || _isLoadingStats) return; // 통계 로딩 중에는 처리하지 않음
     _isBusy = true;
 
     try {
       final bytes = WriteBufferHelper.concatenatePlanes(image.planes);
-      final Size imageSize = Size(
-        image.width.toDouble(),
-        image.height.toDouble(),
-      );
-
+      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
       _imageSize = imageSize;
 
       final inputImage = InputImage.fromBytes(
@@ -148,7 +181,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
     }
   }
 
-  /// PosturePal 핵심 자세 분석 알고리즘
   void _analyzePosturePal(Pose pose) {
     final keypoints = _extractKeypoints(pose);
     if (keypoints.isEmpty) return;
@@ -178,39 +210,19 @@ class _PosturePalPageState extends State<PosturePalPage> {
     }
   }
 
-  /// PosturePal 키포인트 추출
   Map<String, Offset?> _extractKeypoints(Pose pose) {
     final keypoints = <String, Offset?>{};
-
     keypoints['nose'] = _getLandmarkOffset(pose, PoseLandmarkType.nose);
     keypoints['leftEye'] = _getLandmarkOffset(pose, PoseLandmarkType.leftEye);
     keypoints['rightEye'] = _getLandmarkOffset(pose, PoseLandmarkType.rightEye);
     keypoints['leftEar'] = _getLandmarkOffset(pose, PoseLandmarkType.leftEar);
     keypoints['rightEar'] = _getLandmarkOffset(pose, PoseLandmarkType.rightEar);
-    keypoints['leftShoulder'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.leftShoulder,
-    );
-    keypoints['rightShoulder'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.rightShoulder,
-    );
-    keypoints['leftElbow'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.leftElbow,
-    );
-    keypoints['rightElbow'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.rightElbow,
-    );
-    keypoints['leftWrist'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.leftWrist,
-    );
-    keypoints['rightWrist'] = _getLandmarkOffset(
-      pose,
-      PoseLandmarkType.rightWrist,
-    );
+    keypoints['leftShoulder'] = _getLandmarkOffset(pose, PoseLandmarkType.leftShoulder);
+    keypoints['rightShoulder'] = _getLandmarkOffset(pose, PoseLandmarkType.rightShoulder);
+    keypoints['leftElbow'] = _getLandmarkOffset(pose, PoseLandmarkType.leftElbow);
+    keypoints['rightElbow'] = _getLandmarkOffset(pose, PoseLandmarkType.rightElbow);
+    keypoints['leftWrist'] = _getLandmarkOffset(pose, PoseLandmarkType.leftWrist);
+    keypoints['rightWrist'] = _getLandmarkOffset(pose, PoseLandmarkType.rightWrist);
 
     final leftShoulder = keypoints['leftShoulder'];
     final rightShoulder = keypoints['rightShoulder'];
@@ -224,49 +236,37 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return keypoints;
   }
 
-  /// 36차원 자세 벡터 생성 (PosturePal 방식)
   List<double> _createPostureVector(Map<String, Offset?> keypoints) {
     final neck = keypoints['neck'];
     if (neck == null) return [];
 
     final vector = <double>[];
     final keypointOrder = [
-      'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder',
-      'rightShoulder', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist',
+      'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar',
+      'leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow',
+      'leftWrist', 'rightWrist',
     ];
 
     for (final key in keypointOrder) {
       final point = keypoints[key];
-      if (point != null) {
-        vector.add(point.dx - neck.dx);
-        vector.add(point.dy - neck.dy);
-      } else {
-        vector.add(0.0);
-        vector.add(0.0);
-      }
+      vector.add(point != null ? point.dx - neck.dx : 0.0);
+      vector.add(point != null ? point.dy - neck.dy : 0.0);
     }
+
     return vector;
   }
 
-  /// 자세 분류기 (3단계 구분: 정상/위험/심각)
-  Map<String, dynamic> _classifyPosture(
-      List<double> vector,
-      Map<String, Offset?> keypoints,
-      ) {
+  Map<String, dynamic> _classifyPosture(List<double> vector, Map<String, Offset?> keypoints) {
     final nose = keypoints['nose'];
     final neck = keypoints['neck'];
     final leftShoulder = keypoints['leftShoulder'];
     final rightShoulder = keypoints['rightShoulder'];
 
-    if (nose == null ||
-        neck == null ||
-        leftShoulder == null ||
-        rightShoulder == null) {
+    if (nose == null || neck == null || leftShoulder == null || rightShoulder == null) {
       return {'posture': '분석중...', 'confidence': 0.0};
     }
 
     final headNeckAngle = _calculateHeadNeckAngle(nose, neck);
-    final shoulderSlope = _calculateShoulderSlope(leftShoulder, rightShoulder);
     final forwardRatio = _calculateForwardRatio(nose, neck);
 
     String posture;
@@ -290,14 +290,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
   double _calculateHeadNeckAngle(Offset nose, Offset neck) {
     final dx = nose.dx - neck.dx;
     final dy = nose.dy - neck.dy;
-    final angle = atan2(dy.abs(), dx.abs()) * 180 / pi;
-    return angle;
-  }
-
-  double _calculateShoulderSlope(Offset leftShoulder, Offset rightShoulder) {
-    final dy = rightShoulder.dy - leftShoulder.dy;
-    final dx = rightShoulder.dx - leftShoulder.dx;
-    return dx == 0 ? 0 : dy / dx;
+    return atan2(dy.abs(), dx.abs()) * 180 / pi;
   }
 
   double _calculateForwardRatio(Offset nose, Offset neck) {
@@ -310,17 +303,8 @@ class _PosturePalPageState extends State<PosturePalPage> {
   void _updatePostureStats(String posture) {
     if (posture == '분석중...') return;
 
-    switch (posture) {
-      case "정상":
-        _postureStats["정상"] = (_postureStats["정상"] ?? 0) + 1;
-        break;
-      case "위험":
-        _postureStats["위험"] = (_postureStats["위험"] ?? 0) + 1;
-        break;
-      case "심각":
-        _postureStats["심각"] = (_postureStats["심각"] ?? 0) + 1;
-        break;
-    }
+    // 하루 누적 통계 업데이트
+    _postureStats[posture] = (_postureStats[posture] ?? 0) + 1;
   }
 
   void _checkBadPostureAlert(String posture) {
@@ -340,7 +324,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
   void _triggerPostureAlert(String badPosture) {
     HapticFeedback.mediumImpact();
     if (mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars(); // 기존 스낵바 제거
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -381,15 +365,17 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return landmarks;
   }
 
-  /// 자세 통계 리셋 함수 추가
-  void _resetStats() {
+  /// 수동으로 통계 리셋하는 함수 (테스트용)
+  void _resetTodayStats() {
     setState(() {
       _postureStats = {"정상": 0, "위험": 0, "심각": 0};
-      _postureHistory.clear();
-      _vectorHistory.clear();
-      _badPostureCount = 0;
-      _startTime = DateTime.now();
     });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('오늘의 통계가 초기화되었습니다.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -402,12 +388,35 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalFrames = _postureStats.values.isEmpty
-        ? 0
-        : _postureStats.values.reduce((a, b) => a + b);
+    // 하루 누적 통계로 계산
+    final totalFrames = _postureStats.values.fold(0, (prev, count) => prev + count);
     final normalRatio = totalFrames > 0
         ? ((_postureStats['정상'] ?? 0) / totalFrames * 100)
         : 0;
+
+    // 기존 통계 로딩 중일 때
+    if (_isLoadingStats) {
+      return Scaffold(
+        backgroundColor: Colors.black87,
+        appBar: AppBar(
+          backgroundColor: Colors.black87,
+          title: const Text('PosturePal - 자세 분석기'),
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: Colors.white),
+              SizedBox(height: 16),
+              Text(
+                '오늘의 측정 기록을 불러오는 중...',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Colors.black87,
@@ -417,11 +426,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
         actions: [
           IconButton(
             onPressed: () => setState(() => _alertEnabled = !_alertEnabled),
-            icon: Icon(
-              _alertEnabled
-                  ? Icons.notifications_active
-                  : Icons.notifications_off,
-            ),
+            icon: Icon(_alertEnabled ? Icons.notifications_active : Icons.notifications_off),
             tooltip: '알림 ${_alertEnabled ? '끄기' : '켜기'}',
           ),
           IconButton(
@@ -429,10 +434,25 @@ class _PosturePalPageState extends State<PosturePalPage> {
             icon: Icon(_showOffsets ? Icons.visibility : Icons.visibility_off),
             tooltip: '키포인트 표시',
           ),
-          IconButton(
-            onPressed: _resetStats,
-            icon: const Icon(Icons.refresh),
-            tooltip: '통계 초기화',
+          // 개발/테스트용 리셋 버튼
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'reset') {
+                _resetTodayStats();
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'reset',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('통계 초기화'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -485,6 +505,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 현재 자세 상태
                   Row(
                     children: [
                       Icon(
@@ -506,6 +527,8 @@ class _PosturePalPageState extends State<PosturePalPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
+
+                  // 신뢰도
                   Text(
                     "신뢰도: ${(_confidence * 100).toStringAsFixed(1)}%",
                     style: const TextStyle(
@@ -514,19 +537,47 @@ class _PosturePalPageState extends State<PosturePalPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    "정상 자세 비율: ${normalRatio.toStringAsFixed(1)}%",
-                    style: TextStyle(
+
+                  // 하루 누적 점수 (강조 표시)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
                       color: normalRatio >= 80
-                          ? Colors.green
+                          ? Colors.green.withOpacity(0.2)
                           : normalRatio >= 60
-                          ? Colors.orange
-                          : Colors.red,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                          ? Colors.orange.withOpacity(0.2)
+                          : Colors.red.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "오늘 자세 점수:",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          "${normalRatio.toStringAsFixed(1)}점",
+                          style: TextStyle(
+                            color: normalRatio >= 80
+                                ? Colors.green
+                                : normalRatio >= 60
+                                ? Colors.orange
+                                : Colors.red,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 8),
+
+                  // 하루 누적 통계 (전체 측정 횟수)
                   Row(
                     children: [
                       Expanded(
@@ -558,6 +609,19 @@ class _PosturePalPageState extends State<PosturePalPage> {
                       ),
                     ],
                   ),
+
+                  // 총 측정 횟수 표시
+                  if (totalFrames > 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      "총 측정 횟수: ${totalFrames}회 (앱을 껐다 켜도 누적됩니다)",
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -594,7 +658,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
   }
 }
 
-/// PosturePal 전용 페인터 (상체만, offset 토글 적용)
 class PosturePalPainter extends CustomPainter {
   final List<PoseLandmark> landmarks;
   final Offset? neckPoint;
@@ -606,68 +669,47 @@ class PosturePalPainter extends CustomPainter {
     required this.landmarks,
     required this.neckPoint,
     required this.postureType,
-    this.imageSize,
-    this.showOffsets = false,
+    required this.imageSize,
+    required this.showOffsets,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (imageSize == null || !showOffsets) return;
+    if (imageSize == null || neckPoint == null) return;
 
-    Color postureColor;
-    switch (postureType) {
-      case "정상":
-        postureColor = Colors.green;
-        break;
-      case "위험":
-        postureColor = Colors.orange;
-        break;
-      case "심각":
-        postureColor = Colors.red;
-        break;
-      default:
-        postureColor = Colors.white;
-    }
+    final scaleX = size.width / imageSize!.width;
+    final scaleY = size.height / imageSize!.height;
 
-    final pointPaint = Paint()
+    final paint = Paint()
       ..style = PaintingStyle.fill
-      ..color = postureColor;
+      ..strokeWidth = 2.0
+      ..color = Colors.blueAccent;
 
-    final upperBodyTypes = [
-      PoseLandmarkType.nose, PoseLandmarkType.leftEyeInner, PoseLandmarkType.leftEye,
-      PoseLandmarkType.leftEyeOuter, PoseLandmarkType.rightEyeInner, PoseLandmarkType.rightEye,
-      PoseLandmarkType.rightEyeOuter, PoseLandmarkType.leftEar, PoseLandmarkType.rightEar,
-      PoseLandmarkType.leftMouth, PoseLandmarkType.rightMouth, PoseLandmarkType.leftShoulder,
-      PoseLandmarkType.rightShoulder, PoseLandmarkType.leftElbow, PoseLandmarkType.rightElbow,
-      PoseLandmarkType.leftWrist, PoseLandmarkType.rightWrist
-    ];
-
-    for (final landmark in landmarks) {
-      if (upperBodyTypes.contains(landmark.type)) {
-        canvas.drawCircle(Offset(landmark.x, landmark.y), 3, pointPaint);
+    if (showOffsets) {
+      for (final landmark in landmarks) {
+        final offset = Offset(landmark.x * scaleX, landmark.y * scaleY);
+        canvas.drawCircle(offset, 4, paint);
       }
     }
 
     if (neckPoint != null) {
-      canvas.drawCircle(neckPoint!, 5, pointPaint);
+      final neckOffset = Offset(neckPoint!.dx * scaleX, neckPoint!.dy * scaleY);
+      final neckPaint = Paint()..color = Colors.yellow;
+      canvas.drawCircle(neckOffset, 6, neckPaint);
     }
   }
 
   @override
-  bool shouldRepaint(covariant PosturePalPainter oldDelegate) =>
-      oldDelegate.landmarks != landmarks ||
-          oldDelegate.neckPoint != neckPoint ||
-          oldDelegate.postureType != postureType ||
-          oldDelegate.imageSize != imageSize ||
-          oldDelegate.showOffsets != showOffsets;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
+/// 헬퍼 클래스
 class WriteBufferHelper {
   static Uint8List concatenatePlanes(List<Plane> planes) {
-    final allBytes = BytesBuilder();
-    for (final Plane plane in planes) {
-      allBytes.add(plane.bytes);
+    final WriteBuffer allBytes = WriteBuffer();
+    for (final plane in planes) {
+      allBytes.putUint8List(plane.bytes);
     }
-    return allBytes.toBytes();
+    return allBytes.done().buffer.asUint8List();
   }
 }

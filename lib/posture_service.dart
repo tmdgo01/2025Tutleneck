@@ -4,6 +4,38 @@ import 'package:flutter/foundation.dart';
 class PostureService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  /// 오늘의 기존 통계를 불러오는 함수 (앱 시작시 사용)
+  Future<Map<String, int>> getTodayStats() async {
+    try {
+      final now = DateTime.now();
+      final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      final doc = await _firestore
+          .collection('posture_daily')
+          .doc(dateKey)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final stats = data['stats'] as Map<String, dynamic>?;
+
+        if (stats != null) {
+          return {
+            "정상": (stats['정상'] as num?)?.toInt() ?? 0,
+            "위험": (stats['위험'] as num?)?.toInt() ?? 0,
+            "심각": (stats['심각'] as num?)?.toInt() ?? 0,
+          };
+        }
+      }
+
+      // 오늘 데이터가 없으면 0부터 시작
+      return {"정상": 0, "위험": 0, "심각": 0};
+    } catch (e) {
+      debugPrint('오늘 통계 로딩 실패: $e');
+      return {"정상": 0, "위험": 0, "심각": 0};
+    }
+  }
+
   /// Firebase에 자세 점수와 통계를 저장하는 함수
   Future<void> savePostureScore({
     required double score,
