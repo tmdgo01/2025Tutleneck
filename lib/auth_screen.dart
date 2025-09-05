@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:finalproject/posture_service.dart';
+import 'package:finalproject/main.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -37,6 +39,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
+      final postureService = PostureService();
 
       if (isLogin) {
         // 로그인
@@ -46,14 +49,29 @@ class _AuthScreenState extends State<AuthScreen> {
           password: _passwordController.text.trim(),
         );
 
-        // ✅ SharedPreferences 안전 초기값
-        await prefs.setInt(
-            'postureTargetScore', prefs.getInt('postureTargetScore') ?? 80);
-        await prefs.setInt(
-            'weeklyMeasurementDays', prefs.getInt('weeklyMeasurementDays') ?? 5);
+        // PostureService 사용자 데이터 초기화
+        await postureService.initializeUserData();
+
+        // 사용자별 SharedPreferences 키 생성
+        final userId = userCredential.user?.uid ?? 'anonymous';
+
+        // 기존 설정값이 없으면 기본값 설정 (사용자별)
+        if (!prefs.containsKey('postureTargetScore_$userId')) {
+          await prefs.setInt('postureTargetScore_$userId', 80);
+        }
+        if (!prefs.containsKey('weeklyMeasurementDays_$userId')) {
+          await prefs.setInt('weeklyMeasurementDays_$userId', 5);
+        }
 
         if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/home');
+          // 방법 1: 전체 앱을 MyApp으로 교체 (권장)
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const MyApp()),
+                (route) => false,
+          );
+
+          // 방법 2: 단순히 뒤로가기 (AuthWrapper가 자동으로 HomeScreen 표시)
+          // Navigator.of(context).pop();
         }
       } else {
         // 회원가입
@@ -78,11 +96,15 @@ class _AuthScreenState extends State<AuthScreen> {
 
           // Firebase Auth에 사용자 이름 업데이트
           await user.updateDisplayName(_nameController.text.trim());
+
+          // PostureService 새 사용자 데이터 초기화
+          await postureService.initializeUserData();
         }
 
-        // ✅ SharedPreferences 초기값 저장
-        await prefs.setInt('postureTargetScore', 80);
-        await prefs.setInt('weeklyMeasurementDays', 5);
+        // 새 사용자 SharedPreferences 초기값 저장 (사용자별)
+        final userId = user?.uid ?? 'anonymous';
+        await prefs.setInt('postureTargetScore_$userId', 80);
+        await prefs.setInt('weeklyMeasurementDays_$userId', 5);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -91,7 +113,12 @@ class _AuthScreenState extends State<AuthScreen> {
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.of(context).pushReplacementNamed('/home');
+
+          // 회원가입 후에도 동일하게 MyApp으로 이동
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const MyApp()),
+                (route) => false,
+          );
         }
       }
     } on FirebaseAuthException catch (e) {
@@ -106,6 +133,8 @@ class _AuthScreenState extends State<AuthScreen> {
         errorMessage = '비밀번호가 잘못되었습니다.';
       } else if (e.code == 'invalid-email') {
         errorMessage = '올바르지 않은 이메일 형식입니다.';
+      } else if (e.code == 'network-request-failed') {
+        errorMessage = '네트워크 연결을 확인해주세요.';
       }
 
       if (mounted) {
@@ -117,12 +146,15 @@ class _AuthScreenState extends State<AuthScreen> {
         );
       }
     } catch (e) {
-      // Firestore 또는 SharedPreferences 오류 처리
+      debugPrint('로그인/회원가입 중 상세 오류: $e');
+      debugPrint('에러 타입: ${e.runtimeType}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('데이터 저장 중 오류가 발생했습니다.'),
+          SnackBar(
+            content: Text('오류 발생: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
           ),
         );
       }

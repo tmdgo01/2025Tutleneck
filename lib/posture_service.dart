@@ -1,17 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 class PostureService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  /// 현재 사용자 UID 가져오기
+  String? get _currentUserId => _auth.currentUser?.uid;
+
+  /// 사용자별 컬렉션 경로 생성
+  String get _userPostureCollection {
+    final userId = _currentUserId;
+    if (userId == null) {
+      throw Exception('사용자가 로그인되어 있지 않습니다.');
+    }
+    return 'users/$userId/posture_daily';
+  }
 
   /// 오늘의 기존 통계를 불러오는 함수 (앱 시작시 사용)
   Future<Map<String, int>> getTodayStats() async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return {"정상": 0, "위험": 0, "심각": 0};
+      }
+
       final now = DateTime.now();
       final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
       final doc = await _firestore
-          .collection('posture_daily')
+          .collection(_userPostureCollection)
           .doc(dateKey)
           .get();
 
@@ -42,6 +61,11 @@ class PostureService {
     required Map<String, int> stats,
   }) async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음 - 데이터 저장 불가');
+        return;
+      }
+
       final now = DateTime.now();
       final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
@@ -49,7 +73,7 @@ class PostureService {
       final totalFrames = stats.values.fold(0, (prev, count) => prev + count);
 
       // 문서가 이미 존재하는지 확인
-      final docRef = _firestore.collection('posture_daily').doc(dateKey);
+      final docRef = _firestore.collection(_userPostureCollection).doc(dateKey);
       final doc = await docRef.get();
 
       if (doc.exists) {
@@ -59,6 +83,7 @@ class PostureService {
           'stats': stats,
           'totalFrames': totalFrames,
           'lastUpdated': FieldValue.serverTimestamp(),
+          'userId': _currentUserId, // 사용자 ID 추가 (중복 확인용)
         });
       } else {
         // 새 데이터 생성
@@ -67,24 +92,31 @@ class PostureService {
           'stats': stats,
           'totalFrames': totalFrames,
           'date': dateKey,
+          'userId': _currentUserId, // 사용자 ID 추가
           'createdAt': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
         });
       }
 
-      debugPrint('자세 점수 저장 완료: $score점, 총 프레임: $totalFrames');
+      debugPrint('자세 점수 저장 완료: $score점, 총 프레임: $totalFrames (사용자: $_currentUserId)');
     } catch (e) {
       debugPrint('자세 점수 저장 실패: $e');
+      rethrow; // 에러를 다시 던져서 UI에서 처리할 수 있도록 함
     }
   }
 
   /// 특정 날짜의 자세 데이터를 가져오는 함수
   Future<Map<String, dynamic>?> getPostureData(DateTime date) async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return null;
+      }
+
       final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
       final doc = await _firestore
-          .collection('posture_daily')
+          .collection(_userPostureCollection)
           .doc(dateKey)
           .get();
 
@@ -104,11 +136,16 @@ class PostureService {
       DateTime endDate
       ) async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return [];
+      }
+
       final startDateKey = '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}-${startDate.day.toString().padLeft(2, '0')}';
       final endDateKey = '${endDate.year}-${endDate.month.toString().padLeft(2, '0')}-${endDate.day.toString().padLeft(2, '0')}';
 
       final querySnapshot = await _firestore
-          .collection('posture_daily')
+          .collection(_userPostureCollection)
           .where('date', isGreaterThanOrEqualTo: startDateKey)
           .where('date', isLessThanOrEqualTo: endDateKey)
           .orderBy('date')
@@ -125,11 +162,16 @@ class PostureService {
 
   /// 오늘의 자세 점수를 실시간으로 스트림으로 받는 함수
   Stream<DocumentSnapshot<Map<String, dynamic>>> getTodayPostureStream() {
+    if (_currentUserId == null) {
+      // 빈 스트림 반환
+      return const Stream.empty();
+    }
+
     final now = DateTime.now();
     final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
     return _firestore
-        .collection('posture_daily')
+        .collection(_userPostureCollection)
         .doc(dateKey)
         .snapshots();
   }
@@ -137,14 +179,19 @@ class PostureService {
   /// 자세 기록을 삭제하는 함수
   Future<void> deletePostureData(DateTime date) async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return;
+      }
+
       final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
       await _firestore
-          .collection('posture_daily')
+          .collection(_userPostureCollection)
           .doc(dateKey)
           .delete();
 
-      debugPrint('자세 데이터 삭제 완료: $dateKey');
+      debugPrint('자세 데이터 삭제 완료: $dateKey (사용자: $_currentUserId)');
     } catch (e) {
       debugPrint('자세 데이터 삭제 실패: $e');
     }
@@ -153,6 +200,11 @@ class PostureService {
   /// 주간 평균 점수 계산
   Future<double> getWeeklyAverageScore() async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return 0.0;
+      }
+
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
       final weekEnd = weekStart.add(const Duration(days: 6));
@@ -175,6 +227,11 @@ class PostureService {
   /// 월간 평균 점수 계산
   Future<double> getMonthlyAverageScore() async {
     try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return 0.0;
+      }
+
       final now = DateTime.now();
       final monthStart = DateTime(now.year, now.month, 1);
       final monthEnd = DateTime(now.year, now.month + 1, 0);
@@ -245,11 +302,50 @@ class PostureService {
   /// 스트림 연결 상태를 확인하는 함수
   Future<bool> checkFirebaseConnection() async {
     try {
-      await _firestore.collection('posture_daily').limit(1).get();
+      if (_currentUserId == null) {
+        return false;
+      }
+
+      await _firestore.collection(_userPostureCollection).limit(1).get();
       return true;
     } catch (e) {
       debugPrint('Firebase 연결 확인 실패: $e');
       return false;
     }
+  }
+
+  /// 사용자 데이터 초기화 (새 사용자일 때)
+  Future<void> initializeUserData() async {
+    try {
+      if (_currentUserId == null) {
+        debugPrint('사용자가 로그인되어 있지 않음');
+        return;
+      }
+
+      // 사용자 프로필 문서 생성 (이미 있으면 무시)
+      final userDocRef = _firestore.collection('users').doc(_currentUserId);
+      final userDoc = await userDocRef.get();
+
+      if (!userDoc.exists) {
+        await userDocRef.set({
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('새 사용자 데이터 초기화 완료: $_currentUserId');
+      } else {
+        // 기존 사용자 - 마지막 로그인 시간 업데이트
+        await userDocRef.update({
+          'lastLoginAt': FieldValue.serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      debugPrint('사용자 데이터 초기화 실패: $e');
+    }
+  }
+
+  /// 사용자 로그아웃 시 로컬 캐시 정리
+  void clearUserData() {
+    debugPrint('사용자 데이터 캐시 정리');
+    // 필요시 로컬 캐시나 상태 정리 로직 추가
   }
 }

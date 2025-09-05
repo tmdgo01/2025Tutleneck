@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_exercise_service.dart'; // Firebase 서비스 import
+import 'package:finalproject/posture_service.dart'; // PostureService 추가
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -14,8 +15,8 @@ class _DailyScreenState extends State<DailyScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
-  // Firebase 연동
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // PostureService 사용 (Firebase 직접 접근 대신)
+  final PostureService _postureService = PostureService();
 
   // 자세 점수 관련
   double _postureScore = 0.0;
@@ -35,28 +36,21 @@ class _DailyScreenState extends State<DailyScreen> {
     _loadExerciseDates();
   }
 
-  /// Firebase에서 해당 날짜의 자세 데이터 가져오기
+  /// PostureService를 사용해서 해당 날짜의 자세 데이터 가져오기
   Future<void> _loadPostureScore(DateTime date) async {
     setState(() {
       _isLoadingScore = true;
     });
 
     try {
-      final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      // PostureService를 사용해서 사용자별 데이터 접근
+      final data = await _postureService.getPostureData(date);
 
-      final doc = await _firestore
-          .collection('posture_daily')
-          .doc(dateKey)
-          .get();
-
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        final stats = data['stats'] as Map<String, dynamic>;
-        final totalFrames = data['totalFrames'] as int;
-
-        if (totalFrames > 0) {
-          final normalCount = stats['정상'] ?? 0;
-          _postureScore = (normalCount / totalFrames * 100).toDouble();
+      if (data != null) {
+        // 저장된 점수를 직접 사용 (PostureService에서 이미 계산된 점수)
+        final scoreValue = data['score'];
+        if (scoreValue != null && scoreValue is num) {
+          _postureScore = scoreValue.toDouble();
         } else {
           _postureScore = 0.0;
         }
@@ -185,6 +179,20 @@ class _DailyScreenState extends State<DailyScreen> {
           '일지',
           style: TextStyle(color: Colors.black),
         ),
+        actions: [
+          // 새로고침 버튼 추가
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black),
+            onPressed: () {
+              if (_selectedDay != null) {
+                _loadPostureScore(_selectedDay!);
+                _loadExerciseRecord(_selectedDay!);
+                _loadExerciseDates();
+              }
+            },
+            tooltip: '새로고침',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -326,7 +334,7 @@ class _DailyScreenState extends State<DailyScreen> {
                         ),
                       ),
 
-                      // 자세 점수 박스 (Firebase 연동)
+                      // 자세 점수 박스 (PostureService 연동)
                       Container(
                         width: 120.0,
                         height: 70.0,
@@ -471,7 +479,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
                             // 추가 정보
                             Text(
-                              '정상 자세 유지 비율: ${_postureScore.toStringAsFixed(1)}%',
+                              '자세 점수: ${_postureScore.toStringAsFixed(1)}점',
                               style: TextStyle(
                                 fontSize: 12.0,
                                 color: Colors.grey[600],
