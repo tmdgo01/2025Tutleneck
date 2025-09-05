@@ -81,7 +81,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - asset/bottom.png
-    - asset/ex1.jpg
+    - asset/ex1.png
     - asset/ex2.jpg
     - asset/ex3.jpg
     - asset/ex4.jpg
@@ -90,6 +90,16 @@ flutter:
     - asset/ex1-1.mp4
     - assets/vo1-1.mp3
     - asset/dh.json
+    - asset/ex1-3.jpg
+    - asset/ex1-5.mp4
+    - asset/ex1-6.mp4
+    - asset/ex2-1.mp4
+    - asset/ex2-2.mp4
+    - asset/ex2-5.png
+    - asset/ex3-3.png
+    - asset/ex3-4.png
+    - asset/ex3-5.png
+    - asset/ex1-4.jpg
 
 
 

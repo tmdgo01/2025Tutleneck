@@ -120,17 +120,17 @@ class ExerciseScreen extends StatelessWidget {
                               } else {
                                 // 아직 이전 운동 완료하지 않았을 때 팝업 알림
                                 showDialog(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      title: Text("운동 순서 안내"),
-                                      content: Text("이전 운동을 먼저 완료해주세요!"),
-                                      actions: [
-                                        TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: Text("확인"),
-                                        ),
-                                      ],
-                                    ),
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: Text("운동 순서 안내"),
+                                    content: Text("이전 운동을 먼저 완료해주세요!"),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text("확인"),
+                                      ),
+                                    ],
+                                  ),
                                 );
                               }
                             },
@@ -375,75 +375,102 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            ////// 운동 동영상 위젯 + 버튼 //////////
+            ////// 운동 동영상 위젯 + 버튼 ////////
             Center(
-              child: _currentExercise.gifPath.endsWith('.mp4')
-                  ? (_controller != null && _controller!.value.isInitialized
-                  ? Stack(
-                alignment: Alignment.bottomCenter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  AspectRatio(
-                    aspectRatio: _controller!.value.aspectRatio,
-                    child: VideoPlayer(_controller!),
-                  ),
-                  // 컨트롤 바 //
-                  Container(
-                    color: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6.0,
-                      vertical: 6.0,
+                  // 비디오 영역 (비율 계산 + 최대 높이 제한)
+                  if (_currentExercise.gifPath.endsWith('.mp4'))
+                    (_controller != null && _controller!.value.isInitialized)
+                        ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final videoSize = _controller!.value.size;
+                        final containerWidth = constraints.maxWidth;
+                        final calculatedHeight =
+                            containerWidth * videoSize.height / videoSize.width;
+
+                        // 최대 높이 제한 (예: 320)
+                        final double maxHeight = 320;
+                        final double finalHeight = calculatedHeight > maxHeight
+                            ? maxHeight
+                            : calculatedHeight;
+
+                        return SizedBox(
+                          width: containerWidth,
+                          height: finalHeight,
+                          child: VideoPlayer(_controller!),
+                        );
+                      },
+                    )
+                        : const SizedBox(
+                      height: 200,
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                  // 이미지 처리
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8.0),
+                      child: Image.asset(
+                        _currentExercise.gifPath,
+                        width: double.infinity,
+                        height: 250,
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              if (_controller!.value.isPlaying) {
-                                _controller!.pause();
-                                _isPlaying = false;
-                              } else {
-                                _controller!.play();
-                                _isPlaying = true;
-                              }
-                            });
-                          },
-                          icon: Icon(
-                            _isPlaying
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_fill,
-                            color: Colors.white,
-                            size: 30.0,
-                          ),
-                        ),
-                        // 진행 바
-                        Expanded(
-                          child: VideoProgressIndicator(
-                            _controller!,
-                            allowScrubbing: true,
-                            colors: const VideoProgressColors(
-                              playedColor: Colors.red,
-                              bufferedColor: Colors.grey,
-                              backgroundColor: Colors.grey,
+
+                  // 🔻 Gap 제거하고 재생바 영상 아래에 딱 붙이기 🔻
+                  if (_controller != null && _controller!.value.isInitialized)
+                    Container(
+                      width: double.infinity,
+                      color: Colors.black.withOpacity(0.4),
+                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                if (_controller!.value.isPlaying) {
+                                  _controller!.pause();
+                                  _isPlaying = false;
+                                } else {
+                                  _controller!.play();
+                                  _isPlaying = true;
+                                }
+                              });
+                            },
+                            icon: Icon(
+                              _isPlaying
+                                  ? Icons.pause_circle_filled
+                                  : Icons.play_circle_fill,
+                              color: Colors.white,
+                              size: 30.0,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12.0),
-                        // 시간표시
-                        Text(
-                          '${_formatDuration(_controller!.value.position)} / ${_formatDuration(_controller!.value.duration)}',
-                          style: const TextStyle(
-                            color: Colors.white,
+                          Expanded(
+                            child: VideoProgressIndicator(
+                              _controller!,
+                              allowScrubbing: true,
+                              colors: const VideoProgressColors(
+                                playedColor: Colors.red,
+                                bufferedColor: Colors.grey,
+                                backgroundColor: Colors.grey,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 12.0),
+                          Text(
+                            '${_formatDuration(_controller!.value.position)} / ${_formatDuration(_controller!.value.duration)}',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
-              )
-                  : const CircularProgressIndicator())
-                  : Image.asset(_currentExercise.gifPath),
+              ),
             ),
+
+
 
             const SizedBox(height: 30.0),
 
@@ -559,7 +586,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       _audioPlayer.stop();  // <-- 오디오 정지 추가
                       _goToNextExercise();
                     }
-                    : null,
+                        : null,
                     child: const Text('다음'),
                   )
                 else
@@ -580,14 +607,14 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                             borderRadius: BorderRadius.circular(16.0),
                           ),
                           title: const Text(
-                              "오늘의 운동 완료 🎉",
+                            "오늘의 운동 완료 🎉",
                             style: TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           content: const Text(
-                              "모든 운동을 끝냈습니다! 수고하셨어요.",
+                            "모든 운동을 끝냈습니다! 수고하셨어요.",
                             style: TextStyle(
                               color: Colors.black87,
                             ),
@@ -606,9 +633,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                                 Navigator.pop(context);
                                 // 메인 화면(첫 화면)까지 이동
                                 Navigator.pushAndRemoveUntil(
-                                    context,
-                                    MaterialPageRoute(builder: (context) => const DailyScreen()),
-                                    (route) => route.isFirst,
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const DailyScreen()),
+                                      (route) => route.isFirst,
                                 );
                               },
                               child: const Text("확인"),
@@ -617,7 +644,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                         ),
                       );
                     }
-                    : null,
+                        : null,
                     child: const Text('오늘의 운동 완료'),
                   ),
               ],
@@ -632,9 +659,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
               child: Text(
                 _currentExercise.source,
                 style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                    fontStyle: FontStyle.italic,
+                  fontSize: 12,
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
                 ),
                 textAlign: TextAlign.center,
               ),

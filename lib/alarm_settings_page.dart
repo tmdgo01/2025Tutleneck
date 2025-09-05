@@ -1,595 +1,443 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
-import 'alarm_data.dart'; // lib 폴더 직접 참조
+import 'package:table_calendar/table_calendar.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AlarmSettingsPage extends StatefulWidget {
-  final Function(AlarmData)? onAlarmCreated;
-  final AlarmData? existingAlarm; // 기존 알람 데이터
-
-  const AlarmSettingsPage({
-    super.key,
-    this.onAlarmCreated,
-    this.existingAlarm, // 수정모드용 기존 알람
-  });
+class DailyScreen extends StatefulWidget {
+  const DailyScreen({super.key});
 
   @override
-  State<AlarmSettingsPage> createState() => _AlarmSettingsPageState();
+  State<DailyScreen> createState() => _DailyScreenState();
 }
 
-class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
-  final List<String> _labels = ['일상 스트레칭', '증상 완화 운동', '폼롤러 운동'];
-  String? _selectedLabel;
-  List<bool> activeDays = List.generate(7, (_) => false);
-  final List<String> dayLabels = ['일','월','화','수','목','금','토'];
-  int selectedInterval = 1;
-  final List<int> intervalOptions = [1,2,3];
-  int startHour = 9;
-  int startMinute = 0;
-  int endHour = 18;
-  int endMinute = 0;
-  String alarmLabel = '';
-  bool _isSaving = false;
+class _DailyScreenState extends State<DailyScreen> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
 
-  late final TextEditingController _labelController; // 추가
-  bool get isEditMode => widget.existingAlarm != null; // 수정 모드인지 확인
+  // Firebase 연동
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // 자세 점수 관련
+  double _postureScore = 0.0;
+  bool _isLoadingScore = false;
 
   @override
   void initState() {
     super.initState();
-    _labelController = TextEditingController();
-
-    // 기존 알람이 있으면 해당 데이터로 초기화
-    if (widget.existingAlarm != null) {
-      final alarm = widget.existingAlarm!;
-
-      // DropdownButton용 _selectedLabel은 _labels에 있는 값만 설정
-      if (alarm.label != null && _labels.contains(alarm.label)) {
-        _selectedLabel = alarm.label;
-      } else {
-        _selectedLabel = null; // DropdownButton은 null로 설정
-      }
-
-      activeDays = List.from(alarm.activeDays);
-      selectedInterval = alarm.selectedInterval;
-      startHour = alarm.startHour;
-      startMinute = alarm.startMinute;
-      endHour = alarm.endHour;
-      endMinute = alarm.endMinute;
-      alarmLabel = alarm.label ?? ''; // TextField용은 실제 라벨 값 사용
-      _labelController.text = alarm.label ?? '';
-    }
+    _selectedDay = DateTime.now();
+    _loadPostureScore(_selectedDay!);
   }
 
-  @override
-  void dispose() {
-    _labelController.dispose();
-    super.dispose();
-  }
-
-  String _generateUniqueId() =>
-      DateTime.now().millisecondsSinceEpoch.toString() +
-          Random().nextInt(1000).toString();
-
-  bool _hasActiveDay() => activeDays.any((d) => d);
-  bool _isValidTimeRange() => (endHour * 60 + endMinute) > (startHour * 60 + startMinute);
-
-  String _formatTime(int hour, int minute) {
-    String period = hour < 12 ? '오전' : '오후';
-    int displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$period ${displayHour.toString().padLeft(2,'0')}:${minute.toString().padLeft(2,'0')}';
-  }
-
-  Future<void> _showTimePicker(BuildContext context, bool isStartTime) async {
-    int tempHour = isStartTime ? startHour : endHour;
-    int tempMinute = isStartTime ? startMinute : endMinute;
-
-    FixedExtentScrollController hourController =
-    FixedExtentScrollController(initialItem: tempHour);
-    FixedExtentScrollController minuteController =
-    FixedExtentScrollController(initialItem: tempMinute);
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          height: 350,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('취소', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  ),
-                  Text(
-                    isStartTime ? '시작 시간 설정' : '종료 시간 설정',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        if (isStartTime) {
-                          startHour = tempHour;
-                          startMinute = tempMinute;
-                        } else {
-                          endHour = tempHour;
-                          endMinute = tempMinute;
-                        }
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: const Text('완료', style: TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ListWheelScrollView.useDelegate(
-                        controller: hourController,
-                        itemExtent: 50,
-                        perspective: 0.005,
-                        diameterRatio: 1.2,
-                        physics: const FixedExtentScrollPhysics(),
-                        onSelectedItemChanged: (int index) => tempHour = index,
-                        childDelegate: ListWheelChildBuilderDelegate(
-                          childCount: 24,
-                          builder: (context, index) => Container(
-                            alignment: Alignment.center,
-                            child: Text(
-                              index.toString().padLeft(2, '0'),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Text(' : ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
-                    Expanded(
-                      child: ListWheelScrollView.useDelegate(
-                        controller: minuteController,
-                        itemExtent: 50,
-                        perspective: 0.005,
-                        diameterRatio: 1.2,
-                        physics: const FixedExtentScrollPhysics(),
-                        onSelectedItemChanged: (int index) => tempMinute = index,
-                        childDelegate: ListWheelChildBuilderDelegate(
-                          childCount: 60,
-                          builder: (context, index) => Container(
-                            alignment: Alignment.center,
-                            child: Text(
-                              index.toString().padLeft(2, '0'),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    ).whenComplete(() {
-      hourController.dispose();
-      minuteController.dispose();
-    });
-  }
-
-  void _resetAllSettings() {
+  /// Firebase에서 해당 날짜의 자세 데이터 가져오기
+  Future<void> _loadPostureScore(DateTime date) async {
     setState(() {
-      activeDays = List.generate(7, (_) => false);
-      selectedInterval = 1;
-      startHour = 9;
-      startMinute = 0;
-      endHour = 18;
-      endMinute = 0;
-      alarmLabel = '';
-      _selectedLabel = null;
+      _isLoadingScore = true;
     });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('모든 설정이 초기화되었습니다.'),
-        backgroundColor: Colors.orange[400],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  Future<void> _saveSettings() async {
-    if (!_hasActiveDay()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('운동 실행 할 요일을 선택해주세요'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-
-    if (!_isValidTimeRange()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('시작 시간이 종료 시간보다 늦을 수 없습니다.'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
 
     try {
-      final AlarmData alarmData;
+      final dateKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
-      if (isEditMode) {
-        // 수정 모드: 기존 알람의 ID와 생성일자 유지
-        alarmData = AlarmData(
-          id: widget.existingAlarm!.id, // 기존 ID 유지
-          activeDays: List.from(activeDays),
-          startHour: startHour,
-          startMinute: startMinute,
-          endHour: endHour,
-          endMinute: endMinute,
-          selectedInterval: selectedInterval,
-          isAlarmEnabled: widget.existingAlarm!.isAlarmEnabled, // 기존 상태 유지
-          createdAt: widget.existingAlarm!.createdAt, // 기존 생성일자 유지
-          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
-        );
+      final doc = await _firestore
+          .collection('posture_daily')
+          .doc(dateKey)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final stats = data['stats'] as Map<String, dynamic>;
+        final totalFrames = data['totalFrames'] as int;
+
+        if (totalFrames > 0) {
+          final normalCount = stats['정상'] ?? 0;
+          _postureScore = (normalCount / totalFrames * 100).toDouble();
+        } else {
+          _postureScore = 0.0;
+        }
       } else {
-        // 새 알람 생성 모드
-        alarmData = AlarmData(
-          id: _generateUniqueId(),
-          activeDays: List.from(activeDays),
-          startHour: startHour,
-          startMinute: startMinute,
-          endHour: endHour,
-          endMinute: endMinute,
-          selectedInterval: selectedInterval,
-          isAlarmEnabled: true,
-          createdAt: DateTime.now(),
-          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
-        );
+        _postureScore = 0.0; // 데이터 없음
       }
-
-      if (widget.onAlarmCreated != null) {
-        widget.onAlarmCreated!(alarmData);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isEditMode ? '알람이 수정되었습니다!' : '운동 알람이 저장되었습니다!'),
-          backgroundColor: Colors.green[400],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Navigator.pop으로 알람 데이터 반환
-      Navigator.pop(context, alarmData);
-
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('알람 저장에 실패했습니다: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      setState(() => _isSaving = false);
+      debugPrint('자세 점수 로딩 실패: $e');
+      _postureScore = 0.0;
+    }
+
+    setState(() {
+      _isLoadingScore = false;
+    });
+  }
+
+  /// 점수에 따른 색상 반환
+  Color _getScoreColor(double score) {
+    if (score >= 80) {
+      return Colors.green; // 좋은 점수
+    } else if (score >= 60) {
+      return Colors.orange; // 보통 점수
+    } else if (score > 0) {
+      return Colors.red; // 낮은 점수
+    } else {
+      return Colors.grey; // 데이터 없음
     }
   }
 
-  String _getActiveDaysString() {
-    List<String> activeDayNames = [];
-    for (int i = 0; i < activeDays.length; i++) {
-      if (activeDays[i]) activeDayNames.add(dayLabels[i]);
+  /// 점수에 따른 메시지 반환
+  String _getScoreMessage(double score) {
+    if (score >= 90) {
+      return '완벽!';
+    } else if (score >= 80) {
+      return '좋음!';
+    } else if (score >= 60) {
+      return '보통';
+    } else if (score > 0) {
+      return '주의';
+    } else {
+      return '기록없음';
     }
-    return activeDayNames.join(', ');
   }
 
-  Widget _buildDayButton(int index) {
-    final isActive = activeDays[index];
-    return GestureDetector(
-      onTap: () => setState(() => activeDays[index] = !activeDays[index]),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF4CAF50) : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Center(
-          child: Text(
-            dayLabels[index],
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.black,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ),
-      ),
-    );
+  /// 상세 메시지 반환 (누락된 함수 추가)
+  String _getDetailedMessage(double score) {
+    if (score >= 90) {
+      return '정말 훌륭한 자세를 유지하고 계시네요! 계속해서 바른 자세를 유지해보세요.';
+    } else if (score >= 80) {
+      return '좋은 자세예요! 조금 더 신경쓰시면 완벽한 자세를 유지할 수 있어요.';
+    } else if (score >= 60) {
+      return '보통 수준의 자세예요. 조금 더 바른 자세에 신경써주세요.';
+    } else if (score > 0) {
+      return '자세 개선이 필요해요. 목과 어깨를 바르게 펴고 앉아주세요.';
+    } else {
+      return '아직 측정된 데이터가 없습니다.';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final defaultBoxDecoration = BoxDecoration(
+      border: Border.all(
+        color: Colors.grey[200]!,
+        width: 1.0,
+      ),
+    );
+
+    final defaultTextStyle = TextStyle(
+      color: Colors.grey[600],
+      fontWeight: FontWeight.w700,
+    );
+
     return Scaffold(
       backgroundColor: const Color(0xFFE4F3E1),
       appBar: AppBar(
-        title: Text(isEditMode ? '알람 수정' : '운동 알람 설정'),
         backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
+        leading: const BackButton(color: Colors.black),
+        centerTitle: true,
+        title: const Text(
+          '일지',
+          style: TextStyle(color: Colors.black),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 운동 부위 선택
-            const Text('운동 종류', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedLabel,
-                  hint: const Text('종류를 선택하세요'),
-                  items: _labels.map((label) => DropdownMenuItem(value: label, child: Text(label))).toList(),
-                  onChanged: (value) => setState(() => _selectedLabel = value),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              TableCalendar(
+                locale: 'ko_KR',
+                focusedDay: _focusedDay,
+                firstDay: DateTime(2000),
+                lastDay: DateTime(3000),
+                selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                onDaySelected: (selectedDay, focusedDay) {
+                  setState(() {
+                    _selectedDay = selectedDay;
+                    _focusedDay = focusedDay;
+                  });
+                  // 날짜 변경시 해당 날짜의 자세 점수 로드
+                  _loadPostureScore(selectedDay);
+                },
+
+                ///// 헤더 스타일 /////
+                headerStyle: const HeaderStyle(
+                  formatButtonVisible: false,
+                  titleCentered: true,
+                  titleTextStyle: TextStyle(
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 24),
-
-            // 알람 제목
-            Card(
-              color: const Color(0xFFE4F3E1),
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('알람 제목 (선택사항)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _labelController,
-                      onChanged: (value) => alarmLabel = value,
-                      decoration: InputDecoration(
-                        hintText: '예: 아침 운동, 점심 스트레칭',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                    ),
-                  ],
+                ///// 요일 스타일 /////
+                daysOfWeekStyle: const DaysOfWeekStyle(
+                  weekdayStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.0,
+                    color: Colors.black,
+                    height: 1.0,
+                  ),
+                  weekendStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.0,
+                    color: Colors.black,
+                    height: 1.0,
+                  ),
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 요일 선택
-            const Text('활성화된 요일', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(7, (index) => _buildDayButton(index)),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // 시간 설정
-            const Text('운동 시작 시간 및 종료 시간', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('시작', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: () => _showTimePicker(context, true),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[300]!),
-                              ),
-                              child: Text(
-                                _formatTime(startHour, startMinute),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
-                              ),
+                calendarBuilders: CalendarBuilders(
+                    defaultBuilder: (context, day, focusedDay) {
+                      if (day.weekday == DateTime.sunday) {
+                        return Center(
+                          child: Text(
+                            '${day.day}',
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('종료', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: () => _showTimePicker(context, false),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[300]!),
-                              ),
-                              child: Text(
-                                _formatTime(endHour, endMinute),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                        );
+                      }
+                      return null;
+                    }
+                ),
+
+                ///// 캘린더 스타일 /////
+                calendarStyle: CalendarStyle(
+                  isTodayHighlighted: true,
+                  defaultDecoration: defaultBoxDecoration,
+                  weekendDecoration: defaultBoxDecoration,
+                  selectedDecoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.greenAccent[100],
+                  ),
+                  todayDecoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.black12,
+                  ),
+                  outsideDecoration: const BoxDecoration(
+                    shape: BoxShape.rectangle,
+                    color: Colors.transparent,
+                  ),
+                  defaultTextStyle: defaultTextStyle,
+                  weekendTextStyle: defaultTextStyle,
+                  selectedTextStyle: defaultTextStyle.copyWith(
+                    color: Colors.greenAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 20.0),
 
-            // 운동 주기 설정
-            const Text('운동 주기', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: DropdownButton<int>(
-                        value: selectedInterval,
-                        underline: const SizedBox(),
-                        items: intervalOptions.map((value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(' $value ', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                        )).toList(),
-                        onChanged: (newValue) {
-                          if (newValue != null) {
-                            setState(() => selectedInterval = newValue);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 20),
-                    const Text('시간 간격으로 알람', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
-            // 버튼들
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _resetAllSettings,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Colors.red, width: 2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('초기화', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveSettings,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                        : const Text('저장', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // 미리보기
-            if (_hasActiveDay() && _isValidTimeRange()) ...[
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: const Color(0xFFF8F9FA),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.preview, color: Color(0xFF4CAF50)),
-                          SizedBox(width: 8),
-                          Text('알람 미리보기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
-                        ],
+                      // 타임랩스 박스
+                      Expanded(
+                        child: Container(
+                          height: 70.0,
+                          margin: const EdgeInsets.only(right: 8.0),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFD0E8D9),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '타임랩스',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16.0,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 12),
-                      Text('• 활성 요일: ${_getActiveDaysString()}', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text('• 운동 시간: ${_formatTime(startHour, startMinute)} ~ ${_formatTime(endHour, endMinute)}', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text('• 알람 주기: ${selectedInterval}시간 간격', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '• 하루 예상 알람: ${((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) ~/ (selectedInterval * 60) + 1}회',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+
+                      // 자세 점수 박스 (Firebase 연동)
+                      Container(
+                        width: 120.0,
+                        height: 70.0,
+                        decoration: BoxDecoration(
+                          color: _getScoreColor(_postureScore),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: _isLoadingScore
+                            ? const CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2.0,
+                        )
+                            : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              _postureScore > 0
+                                  ? '${_postureScore.toStringAsFixed(0)}점'
+                                  : '기록없음',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: _postureScore > 0 ? 20.0 : 14.0,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (_postureScore > 0)
+                              Text(
+                                _getScoreMessage(_postureScore),
+                                style: const TextStyle(
+                                  fontSize: 12.0,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
+
+                  const SizedBox(height: 10.0),
+                  // 선으로 구분
+                  const Divider(
+                    color: Colors.green, // 선 색상
+                    thickness: 3.0, // 선 두께
+                    indent: 0.0, // 왼쪽 여백
+                    endIndent: 0.0, // 오른쪽 여백
+                  ),
+
+                  ////// 자세 데이터 표시 부분 (ExerciseLog 제거) ////////
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 12.0,
+                        ),
+                        child: Text(
+                          '오늘 자세 분석 결과',
+                          style: TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+
+                      // 자세 분석 결과 카드
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16.0),
+                        margin: const EdgeInsets.only(top: 3.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16.0),
+                          boxShadow: const [
+                            BoxShadow(
+                              blurRadius: 4.0,
+                              color: Colors.black12,
+                            ),
+                          ],
+                        ),
+                        child: _postureScore > 0
+                            ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 점수 표시
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.accessibility_new,
+                                  color: _getScoreColor(_postureScore),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8.0),
+                                Text(
+                                  '자세 점수: ${_postureScore.toStringAsFixed(0)}점',
+                                  style: TextStyle(
+                                    fontSize: 18.0,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getScoreColor(_postureScore),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12.0),
+
+                            // 자세 상태 메시지
+                            Container(
+                              padding: const EdgeInsets.all(12.0),
+                              decoration: BoxDecoration(
+                                color: _getScoreColor(_postureScore).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8.0),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _postureScore >= 80
+                                        ? Icons.sentiment_very_satisfied
+                                        : _postureScore >= 60
+                                        ? Icons.sentiment_neutral
+                                        : Icons.sentiment_dissatisfied,
+                                    color: _getScoreColor(_postureScore),
+                                  ),
+                                  const SizedBox(width: 8.0),
+                                  Expanded(
+                                    child: Text(
+                                      _getDetailedMessage(_postureScore),
+                                      style: const TextStyle(
+                                        fontSize: 14.0,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 8.0),
+
+                            // 추가 정보
+                            Text(
+                              '정상 자세 유지 비율: ${_postureScore.toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontSize: 12.0,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        )
+                            : const Column(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.grey,
+                              size: 48,
+                            ),
+                            SizedBox(height: 8.0),
+                            Text(
+                              '선택된 날짜에 자세 측정 기록이 없습니다.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 16.0,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            SizedBox(height: 4.0),
+                            Text(
+                              'PosturePal로 자세를 측정해보세요!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14.0,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ],
-
-            const SizedBox(height: 40),
-          ],
+          ),
         ),
       ),
     );

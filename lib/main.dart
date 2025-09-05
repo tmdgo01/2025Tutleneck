@@ -16,7 +16,6 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
 
-
   runApp(
       ChangeNotifierProvider(
         create: (context) => ExerciseLog(),
