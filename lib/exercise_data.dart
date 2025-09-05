@@ -38,7 +38,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 강화 운동1 (선 자세)',
-      gifPath: 'asset/ex1-1.mp4', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1-6.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 발을 벽에서 20cm정도 떨어지게 하여 뒤로 벽에 편안하게 기댄 채 선 자세를 취한다.',
         '동작 : - 턱을 뒤로 당기면서 상체와 함께 머리를 벽에 압박을 가해 밀어 10초간 유지한 후 머리를 편안하게 제자리로 되돌려놓는다.'
@@ -51,7 +51,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 강화 운동2',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1-5.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 바로 서거나 앉은 자세에서 시작한다.',
         '동작 : - 양손으로 깍지 끼어 이마에 대고 머리를 앞으로 숙이듯 힘을 가하면서 손에도 힘을 주어 고개가 많이 숙여지지 않도록 지탱한다.'
@@ -67,7 +67,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 스트레칭1(앉은 자세)',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓은 채 스트레칭 시키고자 하는 근육의 반대편 손을 머리의 측면에 대고 스트레칭 쪽의 팔을 굽혀 허리 뒤쪽 부위에 위치시킨다.',
         '동작 : - 손으로 머리에 힘을 가하면서 천천히 목을 옆으로 굽힌다. '
@@ -82,7 +82,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 스트레칭2(앉은 자세)',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1-3.jpg', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓은 채 스트레칭 시키고자 하는 근육의 반대편 손을 머리의 측면에 대고 스트레칭 쪽의 팔을 굽혀 허리 뒤쪽 부위에 위치시킨다.',
         '동작 : - 등 뒤에서 한쪽 손목을 다른 쪽 손으로 수동적으로 잡아당기고 목을 같은 방향으로 능동적으로 기울이는 변형된 방법으로 스트레칭을 한다.',
@@ -95,7 +95,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '좌,우 목 돌리기',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1-4.jpg', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓고 척추를 중립 상태로 둔 채 바로 서거나 앉은 자세를 취한다.',
         '동작 : - 목을 쭉 편 상태에서 목과 머리를 함께 좌로 돌려 10초간 유지한 후 제자리로 되돌아온 다음 다시 우로 돌려 10초간 유지한 후 제자리로 되돌아오는 동작을 좌우 교대로 각각 10회씩 반복 시행한다.'
@@ -109,7 +109,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '원 방향 목 돌리기',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex1-3.jpg', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 의자에 앉거나 선 자세에서 상체와 어깨를 이완시켜 놓고 양 손을 교차하여 어깨를 끌어내린다.',
         '동작 : - 머리를 시계 방향으로 원을 그리고 난 다음 시계 반대 방향으로도 원을 그린다.'
@@ -124,7 +124,7 @@ final List<Exercise> exercises = [
   /// 증상 완화운동 ///
   Exercise(
       title: '벽 밀기 (대흉근 스트레칭)',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-1.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓은 채 양팔의 팔꿈치를 어깨 높이보다 위에 오게 한다.  \n- 손바닥을 벽 모서리나 문틀에 대며, 한 쪽 발을 뒤로 빼고 앞에 있는 발의 무릎을 약간 굽혀준다.',
         '동작 : - 한 쪽 발을 앞으로 내디뎌놓은 상태에서 양팔을 굽혀 벽에 대고 불편함이 없는 한도에서 상체를 최대한 앞으로 밀어줘 10초간 유지한 후 제자리로 되돌아온다.'
@@ -138,7 +138,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '가슴 스트레칭(소흉근 스트레칭)',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-2.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓고 양팔을 펴서 몸 뒤쪽으로 두고 양 손 바닥이 마주보면서 양 손 깍지 낀 채 바로 선 자세를 취한다.',
         '동작1 : - 팔을 편 채 위로 올려 10초 간 유지한 후 제자리로 내려놓는다. \n- 등 양 쪽 견갑골이 조여지면서 가슴 근육이 최대한으로 스트레칭되도록 한다. \n- 이 동 작을 10회 반복한다.',
@@ -151,7 +151,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 강화 운동1',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-5.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 양팔을 굽혀 팔꿈치를 어깨 아래 바닥에 대고 상체를 엎드려 스핑크스 자세를 취한다.',
         '동작 : - 턱을 목쪽으로 가볍게 당기면서 머리와 목이 뒤로 당겨진 상태를 만들고 \n- 어깨는 아래로 내리고 앞으로 내밀어진 자세에서 10초간 유지한 후 시작자세로 되돌아온다.'
@@ -164,7 +164,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: 'W/Y/T 자세 운동',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2.jpg', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 바닥에 엎드려 누워 이마는 수건으로 받치거나 바닥에 가볍게 둔다. \n- 복부에 살짝 힘을 줘 배꼽이 바닥에 닿지 않게 하여 허리 과신전 방지한다.',
         '동작 : - W 자세 : 팔꿈치와 손을 몸 옆으로 굽혀 90° 굽혀 W 자 모양을 만든다.(팔꿈치가 옆구리 높이)'
@@ -182,7 +182,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: 'Cat–Cow (척추 가동성 운동)',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-5.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 무릎은 엉덩이 아래, 손목은 어깨 바로 아래에 오도록 매트 위에 네 발로 엎드린다. \n- 시선은 바닥으로 두어 목의 과신전을 막는다.',
         '동작 : - Cow (들숨) : 깊게 들이마시며 배를 아래로 내려 허리(요추)를 살짝 아치로 만들고 꼬리뼈를 위로 들어 올린다.'
@@ -204,7 +204,7 @@ final List<Exercise> exercises = [
   ///폼롤러 운동
   Exercise(
       title: '척추기립근 스트레칭',
-      gifPath: 'asset/ex1-1.mp4', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-1.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 바닥에 폼롤러를 세로로 놓고, 등을 대고 양 무릎을 굽힌 채 바로 누운 자세를 취한다.',
         '동작 : - 이 자세를 10분간 유지한 후 15분간 허리를 좌우로 움직여준다.',
@@ -216,7 +216,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '뒤통수 아래 스트레칭 (후두 하근 스트레칭)',
-      gifPath: 'asset/ex1-1.mp4', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex2-2.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 폼롤러를 세로로 하여 머리가 폼롤러를 밖으로 나오게 등에 대고 양 무릎을 구부린채 바로 누운 자세를 취한다.',
         '동작 : - 체중을 실어 고개를 좌우로 천천히 움직여 폼롤러의 모서리에 의해 뒤통수 아래에 압박이 가해지도록 스트레칭합니다.',
@@ -229,7 +229,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '폼롤러 체스트 오픈',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex3-3.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 폼롤러를 세로로 길게 놓고, 엉덩이부터 머리까지 척추 전체가 닿도록 눕고, 무릎은 세워 발바닥을 바닥에 둔다.',
         '동작 : - 양팔을 벌려 손바닥이 위로 향하게 한다.'
@@ -246,7 +246,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '목 스트레칭',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex3-4.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 폼롤러를 가로로 두어 양끝을 손으로 잡고 폼롤러 위에 머리의 모발 경계선을 대며 양 무릎을 구부린 채 바로 누운 자세를 취한다.',
         '동작 : - 폼롤러가 움직이지 않게 양끝을 손으로 붙잡고 고개를 천천히 좌우로 돌린다.',
@@ -258,7 +258,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '등 전체 폼롤러 스트레칭',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex3-5.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 바닥에 폼롤러를 가로로 놓고, 그 위에 등을 대고 눕는다. \n- 폼롤러는 어깨뼈 아래, 등 중간 부위에 위치해야 한다.'
             '\n- 무릎은 세워 발바닥을 바닥에 붙인 상태로 엉덩이는 바닥에 유지한다. \n- 양손은 깍지 낀 상태로 머리 밑을 받쳐둔다.',
@@ -275,7 +275,7 @@ final List<Exercise> exercises = [
   ),
   Exercise(
       title: '소흉근 스트레칭',
-      gifPath: '', // 실제 gif 경로 or 임시
+      gifPath: 'asset/ex4.jpg', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 엎드린 상태에서 폼롤러를 가슴 앞 부위, 소흉근을 집중적으로 자극할 수 있는 위치에 놓는다.',
         '동작 : - 폼롤러 위에서 가슴 부위를 천천히 앞 뒤로 굴리며 소흉근을 마사지하듯 이완시킨다.'

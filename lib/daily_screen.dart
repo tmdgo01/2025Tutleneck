@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'exercise_screen.dart'; // ExerciseLog import
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -20,11 +22,26 @@ class _DailyScreenState extends State<DailyScreen> {
   double _postureScore = 0.0;
   bool _isLoadingScore = false;
 
+  // ExerciseLog 직접 접근을 위한 변수
+  ExerciseLog? _exerciseLog;
+
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
     _loadPostureScore(_selectedDay!);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Provider가 있다면 가져오고, 없다면 새로 생성
+    try {
+      _exerciseLog = Provider.of<ExerciseLog>(context, listen: false);
+    } catch (e) {
+      // Provider가 없는 경우 새로 생성 (임시 방법)
+      _exerciseLog = ExerciseLog();
+    }
   }
 
   /// Firebase에서 해당 날짜의 자세 데이터 가져오기
@@ -93,7 +110,7 @@ class _DailyScreenState extends State<DailyScreen> {
     }
   }
 
-  /// 상세 메시지 반환 (누락된 함수 추가)
+  /// 상세 메시지 반환
   String _getDetailedMessage(double score) {
     if (score >= 90) {
       return '정말 훌륭한 자세를 유지하고 계시네요! 계속해서 바른 자세를 유지해보세요.';
@@ -106,6 +123,13 @@ class _DailyScreenState extends State<DailyScreen> {
     } else {
       return '아직 측정된 데이터가 없습니다.';
     }
+  }
+
+  /// 운동 기록이 있는 날짜인지 확인
+  bool _hasExerciseRecord(DateTime day) {
+    if (_exerciseLog == null) return false;
+    final exercises = _exerciseLog!.getExercisesForDay(day);
+    return exercises.isNotEmpty;
   }
 
   @override
@@ -180,20 +204,38 @@ class _DailyScreenState extends State<DailyScreen> {
                   ),
                 ),
                 calendarBuilders: CalendarBuilders(
-                    defaultBuilder: (context, day, focusedDay) {
-                      if (day.weekday == DateTime.sunday) {
-                        return Center(
-                          child: Text(
-                            '${day.day}',
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.w600,
-                            ),
+                  defaultBuilder: (context, day, focusedDay) {
+                    // 일요일 빨간색 표시
+                    if (day.weekday == DateTime.sunday) {
+                      return Center(
+                        child: Text(
+                          '${day.day}',
+                          style: const TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w600,
                           ),
-                        );
-                      }
-                      return null;
+                        ),
+                      );
                     }
+                    return null;
+                  },
+                  // 운동 기록이 있는 날짜에 마커 표시
+                  markerBuilder: (context, day, events) {
+                    if (_hasExerciseRecord(day)) {
+                      return Positioned(
+                        bottom: 1,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.orange,
+                            shape: BoxShape.circle,
+                          ),
+                          width: 6.0,
+                          height: 6.0,
+                        ),
+                      );
+                    }
+                    return null;
+                  },
                 ),
 
                 ///// 캘린더 스타일 /////
@@ -301,7 +343,7 @@ class _DailyScreenState extends State<DailyScreen> {
                     endIndent: 0.0, // 오른쪽 여백
                   ),
 
-                  ////// 자세 데이터 표시 부분 (ExerciseLog 제거) ////////
+                  ////// 자세 데이터 표시 부분 ////////
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -434,12 +476,237 @@ class _DailyScreenState extends State<DailyScreen> {
                       ),
                     ],
                   ),
+
+                  const SizedBox(height: 20.0),
+
+                  ////// 운동 기록 표시 부분 ////////
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12.0,
+                          horizontal: 12.0,
+                        ),
+                        child: Text(
+                          '운동 기록',
+                          style: TextStyle(
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+
+                      // 운동 기록 카드
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16.0),
+                        margin: const EdgeInsets.only(top: 3.0),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16.0),
+                          boxShadow: const [
+                            BoxShadow(
+                              blurRadius: 4.0,
+                              color: Colors.black12,
+                            ),
+                          ],
+                        ),
+                        child: _buildExerciseRecord(),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// 운동 기록 위젯 빌드
+  Widget _buildExerciseRecord() {
+    if (_selectedDay == null || _exerciseLog == null) {
+      return const Column(
+        children: [
+          Icon(
+            Icons.info_outline,
+            color: Colors.grey,
+            size: 48,
+          ),
+          SizedBox(height: 8.0),
+          Text(
+            '운동 기록을 불러올 수 없습니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.0,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final exercises = _exerciseLog!.getExercisesForDay(_selectedDay!);
+
+    if (exercises.isEmpty) {
+      return const Column(
+        children: [
+          Icon(
+            Icons.fitness_center_outlined,
+            color: Colors.grey,
+            size: 48,
+          ),
+          SizedBox(height: 8.0),
+          Text(
+            '선택된 날짜에 운동 기록이 없습니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.0,
+              color: Colors.grey,
+            ),
+          ),
+          SizedBox(height: 4.0),
+          Text(
+            '목과 어깨 운동을 시작해보세요!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14.0,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      );
+    }
+
+    // 운동 횟수 계산 (중복 허용)
+    final exerciseCount = <String, int>{};
+    for (final exercise in exercises) {
+      exerciseCount[exercise] = (exerciseCount[exercise] ?? 0) + 1;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 운동 횟수 요약
+        Row(
+          children: [
+            const Icon(
+              Icons.fitness_center,
+              color: Colors.orange,
+              size: 24,
+            ),
+            const SizedBox(width: 8.0),
+            Text(
+              '총 ${exercises.length}회 운동 완료',
+              style: const TextStyle(
+                fontSize: 18.0,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16.0),
+
+        // 운동 목록
+        ...exerciseCount.entries.map((entry) {
+          final exerciseName = entry.key;
+          final count = entry.value;
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 8.0),
+            padding: const EdgeInsets.all(12.0),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8.0),
+              border: Border.all(
+                color: Colors.orange.withOpacity(0.3),
+                width: 1.0,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8.0,
+                  height: 8.0,
+                  decoration: const BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 12.0),
+                Expanded(
+                  child: Text(
+                    exerciseName,
+                    style: const TextStyle(
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                if (count > 1) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 4.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                    child: Text(
+                      '${count}회',
+                      style: const TextStyle(
+                        fontSize: 12.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+
+        const SizedBox(height: 12.0),
+
+        // 격려 메시지
+        Container(
+          padding: const EdgeInsets.all(12.0),
+          decoration: BoxDecoration(
+            color: Colors.green.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8.0),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.sentiment_very_satisfied,
+                color: Colors.green,
+              ),
+              const SizedBox(width: 8.0),
+              Expanded(
+                child: Text(
+                  exercises.length >= 5
+                      ? '훌륭해요! 꾸준한 운동으로 목과 어깨 건강을 지키고 계시네요!'
+                      : exercises.length >= 3
+                      ? '좋아요! 꾸준히 운동하시는 모습이 멋져요!'
+                      : '좋은 시작이에요! 조금씩 운동량을 늘려보세요!',
+                  style: const TextStyle(
+                    fontSize: 14.0,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
