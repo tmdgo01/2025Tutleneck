@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'exercise_data.dart';
+import 'firebase_exercise_service.dart';
 
 class ExerciseScreen extends StatelessWidget {
   ExerciseScreen({super.key});
@@ -40,13 +41,14 @@ class ExerciseScreen extends StatelessWidget {
   Exercise? findExerciseByTitle(String title) {
     return exercises.firstWhere(
           (exercise) => exercise.title == title,
-      orElse: () => Exercise(
-        title: title,
-        gifPath: 'asset/placeholder.png',
-        description: ['설명 없음'],
-        voiceGuide: '',
-        source: '',
-      ),
+      orElse: () =>
+          Exercise(
+            title: title,
+            gifPath: 'asset/placeholder.png',
+            description: ['설명 없음'],
+            voiceGuide: '',
+            source: '',
+          ),
     );
   }
 
@@ -56,6 +58,8 @@ class ExerciseScreen extends StatelessWidget {
       entry.key:
       entry.value.map((title) => findExerciseByTitle(title)!).toList(),
   };
+
+  // ExerciseScreen의 build 메서드 전체를 이것으로 교체하세요
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +97,7 @@ class ExerciseScreen extends StatelessWidget {
                 Expanded(
                   child: TabBarView(
                     children: exerciseData.entries.map((entry) {
+                      final tabName = entry.key; // 탭 이름 가져오기
                       final tabExercises = entry.value;
                       return ListView.builder(
                         itemCount: tabExercises.length,
@@ -103,10 +108,12 @@ class ExerciseScreen extends StatelessWidget {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => _ExerciseDetailScreen(
-                                    exercises: tabExercises, // 해당 탭 전체 리스트
-                                    initialIndex: index, // 선택한 인덱스
-                                  ),
+                                  builder: (context) =>
+                                      _ExerciseDetailScreen(
+                                        exercises: tabExercises, // 해당 탭 전체 리스트
+                                        initialIndex: index, // 선택한 인덱스
+                                        tabName: tabName, // 탭 이름 전달
+                                      ),
                                 ),
                               );
                             },
@@ -170,10 +177,12 @@ class ExerciseScreen extends StatelessWidget {
 class _ExerciseDetailScreen extends StatefulWidget {
   final List<Exercise> exercises;
   final int initialIndex;
+  final String tabName; // 추가: 탭 이름
 
   const _ExerciseDetailScreen({
     required this.exercises,
     required this.initialIndex,
+    required this.tabName, // 추가
     super.key,
   });
 
@@ -268,14 +277,6 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             onPressed: () => Navigator.pop(context), // 팝업 닫기
             child: const Text("확인"),
           ),
-          // 필요하면 홈/이전 화면으로 이동:
-          // TextButton(
-          //   onPressed: () {
-          //     Navigator.pop(context); // 팝업
-          //     Navigator.pop(context); // 상세 → 리스트로
-          //   },
-          //   child: const Text("뒤로"),
-          // )
         ],
       ),
     );
@@ -325,7 +326,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (context) => const _HelpDialog(),
+                builder: (context) => _HelpDialog(),
               );
             },
             icon: const Icon(
@@ -527,24 +528,42 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(150, 50),
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       _audioPlayer.stop();
 
-                      // 사용자 선택 AlertDialog 띄우기
+                      final today = DateTime.now();
+
+                      try {
+                        // 1) Firebase에 탭 완료 기록 저장
+                        final exerciseNames = widget.exercises.map((e) => e.title).toList();
+                        await FirebaseExerciseService.saveCompletedTab(
+                          tabName: widget.tabName,
+                          exerciseNames: exerciseNames,
+                          date: today,
+                        );
+
+                        // 2) 로컬 운동 기록에도 "완료" 추가
+                        Provider.of<ExerciseLog>(context, listen: false)
+                            .addExercise(today, "${widget.tabName} 완료");
+                      } catch (e) {
+                        print('Firebase 저장 실패: $e');
+                      }
+
+                      // 3) 완료 팝업 띄우기
                       showDialog(
                         context: context,
-                        barrierDismissible: false, // 바깥 영역 터치로 닫히지 않게
+                        barrierDismissible: false,
                         builder: (context) => AlertDialog(
                           backgroundColor: const Color(0xFFE4F3E1),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16.0),
                           ),
-                          title: const Text(
-                            "오늘의 운동 완료 🎉",
-                            style: TextStyle(
+                          title: Text(
+                            "${widget.tabName} 완료! 🎉",
+                            style: const TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
@@ -558,59 +577,34 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                             ),
                           ),
                           actions: [
-                            // 운동 계속하기 버튼
                             TextButton(
                               style: TextButton.styleFrom(
                                 backgroundColor: Colors.grey[300],
                                 foregroundColor: Colors.black87,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
                               ),
                               onPressed: () {
-                                Navigator.of(context).pop(); // 팝업만 닫기
+                                Navigator.of(context).pop();
                               },
-                              child: const Text(
-                                "운동 계속하기",
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
+                              child: const Text("운동 계속하기"),
                             ),
-
-                            const SizedBox(width: 8),
-
-                            // 일지 보기 버튼
                             TextButton(
                               style: TextButton.styleFrom(
                                 backgroundColor: Colors.green,
                                 foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
                               ),
                               onPressed: () {
-                                Navigator.of(context).pop(); // 팝업 닫기
-                                Navigator.of(context).push(   // 일지로 이동 (뒤로가기 가능)
+                                Navigator.of(context).pop();
+                                Navigator.of(context).push(
                                   MaterialPageRoute(builder: (context) => const DailyScreen()),
                                 );
                               },
-                              child: const Text(
-                                "일지 보기",
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
+                              child: const Text("일지 보기"),
                             ),
                           ],
                         ),
                       );
                     },
-                    child: const Text('오늘의 운동 완료'),
+                    child: Text('${widget.tabName} 완료'), // ✅ const 제거
                   ),
               ],
             ),
@@ -742,13 +736,11 @@ class ExerciseLog extends ChangeNotifier {
   }
 }
 
-
-
-
-///// 탭 상태 /////
 class ExerciseTab extends StatefulWidget {
   final List<String> exerciseNames;
-  const ExerciseTab({super.key, required this.exerciseNames});
+  final String tabName;
+
+  const ExerciseTab({super.key, required this.exerciseNames, required this.tabName,});
 
   @override
   State<ExerciseTab> createState() => _ExerciseTabState();
@@ -788,6 +780,7 @@ class _ExerciseTabState extends State<ExerciseTab>
                 builder: (context) => _ExerciseDetailScreen(
                   exercises: exercisesForTab,
                   initialIndex: index,
+                  tabName: widget.tabName,
                 ),
               ),
             );

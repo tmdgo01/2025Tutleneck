@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
-import 'exercise_screen.dart'; // ExerciseLog import
+import 'firebase_exercise_service.dart'; // Firebase 서비스 import
 
 class DailyScreen extends StatefulWidget {
   const DailyScreen({super.key});
@@ -22,26 +21,18 @@ class _DailyScreenState extends State<DailyScreen> {
   double _postureScore = 0.0;
   bool _isLoadingScore = false;
 
-  // ExerciseLog 직접 접근을 위한 변수
-  ExerciseLog? _exerciseLog;
+  // 운동 기록 관련 (Firebase)
+  Map<String, List<String>> _exerciseRecord = {};
+  bool _isLoadingExercise = false;
+  Set<String> _exerciseDates = {}; // 운동한 날짜들 (캘린더 마커용)
 
   @override
   void initState() {
     super.initState();
     _selectedDay = DateTime.now();
     _loadPostureScore(_selectedDay!);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Provider가 있다면 가져오고, 없다면 새로 생성
-    try {
-      _exerciseLog = Provider.of<ExerciseLog>(context, listen: false);
-    } catch (e) {
-      // Provider가 없는 경우 새로 생성 (임시 방법)
-      _exerciseLog = ExerciseLog();
-    }
+    _loadExerciseRecord(_selectedDay!);
+    _loadExerciseDates();
   }
 
   /// Firebase에서 해당 날짜의 자세 데이터 가져오기
@@ -80,6 +71,44 @@ class _DailyScreenState extends State<DailyScreen> {
     setState(() {
       _isLoadingScore = false;
     });
+  }
+
+  /// Firebase에서 해당 날짜의 운동 기록 가져오기
+  Future<void> _loadExerciseRecord(DateTime date) async {
+    setState(() {
+      _isLoadingExercise = true;
+    });
+
+    try {
+      final record = await FirebaseExerciseService.getCompletedExercises(date);
+      _exerciseRecord = record;
+    } catch (e) {
+      debugPrint('운동 기록 로딩 실패: $e');
+      _exerciseRecord = {};
+    }
+
+    setState(() {
+      _isLoadingExercise = false;
+    });
+  }
+
+  /// 운동한 날짜들 가져오기 (캘린더 마커용)
+  Future<void> _loadExerciseDates() async {
+    try {
+      final startDate = DateTime(_focusedDay.year, _focusedDay.month, 1);
+      final endDate = DateTime(_focusedDay.year, _focusedDay.month + 1, 0);
+
+      final dates = await FirebaseExerciseService.getExerciseDates(
+        startDate: startDate,
+        endDate: endDate,
+      );
+
+      setState(() {
+        _exerciseDates = dates.toSet();
+      });
+    } catch (e) {
+      debugPrint('운동 날짜 로딩 실패: $e');
+    }
   }
 
   /// 점수에 따른 색상 반환
@@ -127,9 +156,8 @@ class _DailyScreenState extends State<DailyScreen> {
 
   /// 운동 기록이 있는 날짜인지 확인
   bool _hasExerciseRecord(DateTime day) {
-    if (_exerciseLog == null) return false;
-    final exercises = _exerciseLog!.getExercisesForDay(day);
-    return exercises.isNotEmpty;
+    final dateKey = '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+    return _exerciseDates.contains(dateKey);
   }
 
   @override
@@ -174,8 +202,13 @@ class _DailyScreenState extends State<DailyScreen> {
                     _selectedDay = selectedDay;
                     _focusedDay = focusedDay;
                   });
-                  // 날짜 변경시 해당 날짜의 자세 점수 로드
+                  // 날짜 변경시 해당 날짜의 데이터 로드
                   _loadPostureScore(selectedDay);
+                  _loadExerciseRecord(selectedDay);
+                },
+                onPageChanged: (focusedDay) {
+                  _focusedDay = focusedDay;
+                  _loadExerciseDates(); // 월 변경시 운동 날짜 다시 로드
                 },
 
                 ///// 헤더 스타일 /////
@@ -479,7 +512,7 @@ class _DailyScreenState extends State<DailyScreen> {
 
                   const SizedBox(height: 20.0),
 
-                  ////// 운동 기록 표시 부분 ////////
+                  ////// Firebase 운동 기록 표시 부분 ////////
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -513,7 +546,7 @@ class _DailyScreenState extends State<DailyScreen> {
                             ),
                           ],
                         ),
-                        child: _buildExerciseRecord(),
+                        child: _buildFirebaseExerciseRecord(),
                       ),
                     ],
                   ),
@@ -526,32 +559,15 @@ class _DailyScreenState extends State<DailyScreen> {
     );
   }
 
-  /// 운동 기록 위젯 빌드
-  Widget _buildExerciseRecord() {
-    if (_selectedDay == null || _exerciseLog == null) {
-      return const Column(
-        children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.grey,
-            size: 48,
-          ),
-          SizedBox(height: 8.0),
-          Text(
-            '운동 기록을 불러올 수 없습니다.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16.0,
-              color: Colors.grey,
-            ),
-          ),
-        ],
+  /// Firebase 운동 기록 위젯 빌드
+  Widget _buildFirebaseExerciseRecord() {
+    if (_isLoadingExercise) {
+      return const Center(
+        child: CircularProgressIndicator(),
       );
     }
 
-    final exercises = _exerciseLog!.getExercisesForDay(_selectedDay!);
-
-    if (exercises.isEmpty) {
+    if (_exerciseRecord.isEmpty) {
       return const Column(
         children: [
           Icon(
@@ -561,7 +577,7 @@ class _DailyScreenState extends State<DailyScreen> {
           ),
           SizedBox(height: 8.0),
           Text(
-            '선택된 날짜에 운동 기록이 없습니다.',
+            '선택된 날짜에 완료된 운동이 없습니다.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 16.0,
@@ -581,16 +597,14 @@ class _DailyScreenState extends State<DailyScreen> {
       );
     }
 
-    // 운동 횟수 계산 (중복 허용)
-    final exerciseCount = <String, int>{};
-    for (final exercise in exercises) {
-      exerciseCount[exercise] = (exerciseCount[exercise] ?? 0) + 1;
-    }
+    // 총 완료된 탭 수 계산
+    int totalCompletedTabs = _exerciseRecord.length;
+    int totalExercises = _exerciseRecord.values.expand((list) => list).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 운동 횟수 요약
+        // 완료 요약
         Row(
           children: [
             const Icon(
@@ -600,7 +614,7 @@ class _DailyScreenState extends State<DailyScreen> {
             ),
             const SizedBox(width: 8.0),
             Text(
-              '총 ${exercises.length}회 운동 완료',
+              '${totalCompletedTabs}개 탭 완료 (총 ${totalExercises}개 운동)',
               style: const TextStyle(
                 fontSize: 18.0,
                 fontWeight: FontWeight.bold,
@@ -612,63 +626,87 @@ class _DailyScreenState extends State<DailyScreen> {
 
         const SizedBox(height: 16.0),
 
-        // 운동 목록
-        ...exerciseCount.entries.map((entry) {
-          final exerciseName = entry.key;
-          final count = entry.value;
+        // 탭별 운동 목록
+        ..._exerciseRecord.entries.map((entry) {
+          final tabName = entry.key;
+          final exercises = entry.value;
 
           return Container(
-            margin: const EdgeInsets.only(bottom: 8.0),
-            padding: const EdgeInsets.all(12.0),
+            margin: const EdgeInsets.only(bottom: 12.0),
+            padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8.0),
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12.0),
               border: Border.all(
-                color: Colors.orange.withOpacity(0.3),
+                color: Colors.blue.withOpacity(0.3),
                 width: 1.0,
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 8.0,
-                  height: 8.0,
-                  decoration: const BoxDecoration(
-                    color: Colors.orange,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 12.0),
-                Expanded(
-                  child: Text(
-                    exerciseName,
-                    style: const TextStyle(
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-                if (count > 1) ...[
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8.0,
-                      vertical: 4.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                    child: Text(
-                      '${count}회',
-                      style: const TextStyle(
-                        fontSize: 12.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                // 탭 이름
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8.0,
+                        vertical: 4.0,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      child: Text(
+                        tabName,
+                        style: const TextStyle(
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8.0),
+                    Text(
+                      '${exercises.length}개 운동 완료',
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 8.0),
+
+                // 운동 목록
+                ...exercises.map((exerciseName) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4.0,
+                          height: 4.0,
+                          decoration: const BoxDecoration(
+                            color: Colors.blue,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8.0),
+                        Expanded(
+                          child: Text(
+                            exerciseName,
+                            style: const TextStyle(
+                              fontSize: 14.0,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ],
             ),
           );
@@ -692,11 +730,11 @@ class _DailyScreenState extends State<DailyScreen> {
               const SizedBox(width: 8.0),
               Expanded(
                 child: Text(
-                  exercises.length >= 5
+                  totalCompletedTabs >= 3
+                      ? '완벽해요! 모든 운동 카테고리를 완료하셨네요!'
+                      : totalCompletedTabs >= 2
                       ? '훌륭해요! 꾸준한 운동으로 목과 어깨 건강을 지키고 계시네요!'
-                      : exercises.length >= 3
-                      ? '좋아요! 꾸준히 운동하시는 모습이 멋져요!'
-                      : '좋은 시작이에요! 조금씩 운동량을 늘려보세요!',
+                      : '좋은 시작이에요! 다른 운동도 도전해보세요!',
                   style: const TextStyle(
                     fontSize: 14.0,
                     color: Colors.black87,
