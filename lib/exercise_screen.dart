@@ -533,7 +533,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                     onPressed: () {
                       _audioPlayer.stop();
 
-                      // AlertDialog 띄우기
+                      // 사용자 선택 AlertDialog 띄우기
                       showDialog(
                         context: context,
                         barrierDismissible: false, // 바깥 영역 터치로 닫히지 않게
@@ -547,15 +547,42 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                             style: TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
+                              fontSize: 18,
                             ),
                           ),
                           content: const Text(
-                            "모든 운동을 끝냈습니다! 수고하셨습니다. 일지로 이동합니다.",
+                            "모든 운동을 끝냈습니다! 수고하셨습니다.\n\n어디로 이동하시겠어요?",
                             style: TextStyle(
                               color: Colors.black87,
+                              fontSize: 16,
                             ),
                           ),
                           actions: [
+                            // 운동 계속하기 버튼
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                backgroundColor: Colors.grey[300],
+                                foregroundColor: Colors.black87,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.of(context).pop(); // 팝업만 닫기
+                              },
+                              child: const Text(
+                                "운동 계속하기",
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            // 일지 보기 버튼
                             TextButton(
                               style: TextButton.styleFrom(
                                 backgroundColor: Colors.green,
@@ -563,18 +590,21 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                               ),
                               onPressed: () {
-                                // ① 팝업 먼저 닫기
-                                Navigator.of(context).pop();
-
-                                // ② DailyScreen으로 이동하면서 이전 화면 모두 제거
-                                Navigator.of(context).pushAndRemoveUntil(
+                                Navigator.of(context).pop(); // 팝업 닫기
+                                Navigator.of(context).push(   // 일지로 이동 (뒤로가기 가능)
                                   MaterialPageRoute(builder: (context) => const DailyScreen()),
-                                      (route) => false,
                                 );
                               },
-                              child: const Text("확인"),
+                              child: const Text(
+                                "일지 보기",
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
                             ),
                           ],
                         ),
