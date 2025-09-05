@@ -40,46 +40,47 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (isLogin) {
         // 로그인
-        await FirebaseAuth.instance.signInWithEmailAndPassword(
+        UserCredential userCredential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        // ✅ 로그인 성공 후 SharedPreferences 초기값 저장
-        if (!prefs.containsKey('postureTargetScore')) {
-          await prefs.setInt('postureTargetScore', 80); // 예시 초기값
-        }
-        if (!prefs.containsKey('weeklyMeasurementDays')) {
-          await prefs.setInt('weeklyMeasurementDays', 5); // 예시 초기값
-        }
+        // ✅ SharedPreferences 안전 초기값
+        await prefs.setInt(
+            'postureTargetScore', prefs.getInt('postureTargetScore') ?? 80);
+        await prefs.setInt(
+            'weeklyMeasurementDays', prefs.getInt('weeklyMeasurementDays') ?? 5);
 
         if (mounted) {
           Navigator.of(context).pushReplacementNamed('/home');
         }
       } else {
         // 회원가입
-        UserCredential userCredential = await FirebaseAuth.instance
-            .createUserWithEmailAndPassword(
+        UserCredential userCredential =
+        await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-        // Firestore에 사용자 추가 정보 저장
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userCredential.user!.uid)
-            .set({
-          'name': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastLoginAt': FieldValue.serverTimestamp(),
-        });
+        final user = userCredential.user;
+        if (user != null) {
+          // Firestore에 사용자 추가 정보 저장
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+            'name': _nameController.text.trim(),
+            'email': _emailController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastLoginAt': FieldValue.serverTimestamp(),
+          });
 
-        // Firebase Auth에 사용자 이름 업데이트
-        await userCredential.user!
-            .updateDisplayName(_nameController.text.trim());
+          // Firebase Auth에 사용자 이름 업데이트
+          await user.updateDisplayName(_nameController.text.trim());
+        }
 
-        // ✅ 회원가입 후 SharedPreferences 초기값 저장
+        // ✅ SharedPreferences 초기값 저장
         await prefs.setInt('postureTargetScore', 80);
         await prefs.setInt('weeklyMeasurementDays', 5);
 
@@ -134,7 +135,6 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,7 +151,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   // 로고 및 타이틀
                   Column(
                     children: [
-                      // 거북이 아이콘
                       Container(
                         width: 100,
                         height: 100,
@@ -166,33 +165,19 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      RichText(
-                        text: const TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'tutle',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                            TextSpan(
-                              text: ' neck',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
+                      const Text(
+                        'tutle neck',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 48),
 
-                  // 입력 필드들
+                  // 입력 필드
                   if (!isLogin) ...[
                     _buildInputField(
                       controller: _nameController,
@@ -207,7 +192,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-
                   _buildInputField(
                     controller: _emailController,
                     hintText: '아이디를 입력하세요',
@@ -223,7 +207,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
                   _buildInputField(
                     controller: _passwordController,
                     hintText: '비밀번호를 입력하세요',
@@ -239,7 +222,6 @@ class _AuthScreenState extends State<AuthScreen> {
                       return null;
                     },
                   ),
-
                   if (!isLogin) ...[
                     const SizedBox(height: 16),
                     _buildInputField(
@@ -260,8 +242,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
 
                   const SizedBox(height: 32),
-
-                  // 로그인/회원가입 버튼
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -288,18 +268,14 @@ class _AuthScreenState extends State<AuthScreen> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 24),
 
-                  // 전환 링크들
+                  // 전환 링크
                   Column(
                     children: [
                       if (isLogin) ...[
                         GestureDetector(
-                          onTap: () {
-                            // 비밀번호 찾기 기능
-                            _showForgotPasswordDialog();
-                          },
+                          onTap: _showForgotPasswordDialog,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 8),
@@ -319,12 +295,10 @@ class _AuthScreenState extends State<AuthScreen> {
                         ),
                         const SizedBox(height: 8),
                       ],
-
                       TextButton(
                         onPressed: () {
                           setState(() {
                             isLogin = !isLogin;
-                            // 폼 초기화
                             _formKey.currentState?.reset();
                             _emailController.clear();
                             _passwordController.clear();
@@ -333,7 +307,9 @@ class _AuthScreenState extends State<AuthScreen> {
                           });
                         },
                         child: Text(
-                          isLogin ? '계정이 없으신가요? 회원가입' : '이미 계정이 있으신가요? 로그인',
+                          isLogin
+                              ? '계정이 없으신가요? 회원가입'
+                              : '이미 계정이 있으신가요? 로그인',
                           style: TextStyle(
                             color: Colors.grey[700],
                             fontSize: 14,
