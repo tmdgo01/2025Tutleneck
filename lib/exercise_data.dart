@@ -163,8 +163,8 @@ final List<Exercise> exercises = [
       source: '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>'
   ),
   Exercise(
-      title: 'W/Y/T 자세 운동',
-      gifPath: 'asset/ex2.jpg', // 실제 gif 경로 or 임시
+      title: 'WYT 자세 운동',
+      gifPath: 'asset/ex2.jpg',
       description: [
         '시작자세 : - 바닥에 엎드려 누워 이마는 수건으로 받치거나 바닥에 가볍게 둔다. \n- 복부에 살짝 힘을 줘 배꼽이 바닥에 닿지 않게 하여 허리 과신전 방지한다.',
         '동작 : - W 자세 : 팔꿈치와 손을 몸 옆으로 굽혀 90° 굽혀 W 자 모양을 만든다.(팔꿈치가 옆구리 높이)'

@@ -24,7 +24,7 @@ class ExerciseScreen extends StatelessWidget {
       '벽 밀기 (대흉근 스트레칭)',
       '가슴 스트레칭(소흉근 스트레칭)',
       '목 강화 운동1',
-      'W/Y/T 자세 운동',
+      'WYT 자세 운동',
       'Cat–Cow (척추 가동성 운동)',
     ],
     '폼롤러 운동': [
@@ -475,7 +475,6 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
 
             const SizedBox(height: 40.0),
 
-            // 🔧"운동하기" + "다음/오늘의 운동 완료" 버튼을 나란히 배치
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -491,18 +490,69 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                     ),
                   ),
                   onPressed: () async {
-                    try {
-                      // 운동 기록 저장
-                      final today = DateTime.now();
-                      final exerciseName = _currentExercise.title;
-                      Provider.of<ExerciseLog>(context, listen: false)
-                          .addExercise(today, exerciseName);
+                    final today = DateTime.now();
+                    final exerciseName = _currentExercise.title;
 
-                      // 오디오 재생
-                      await _audioPlayer.play(AssetSource('vo1-1.mp3'));
-                      // print('운동타이머 출력됨!');
+                    try {
+                      // Firebase에 운동 기록 저장
+                      await FirebaseExerciseService.saveIndividualExercise(
+                        exerciseName: exerciseName,
+                        date: today,
+                      );
+
+                      // 음성 재생
+                      print('음성 재생 시도 중...');
+                      try {
+                        await _audioPlayer.play(AssetSource('vo1-1.mp3'));
+                        print('음성 재생 성공');
+                      } catch (audioError) {
+                        print('음성 재생 실패: $audioError');
+
+                        // 대체 음성 파일 시도
+                        try {
+                          await _audioPlayer.play(AssetSource('vo1-1.wav'));
+                          print('대체 음성 재생 성공');
+                        } catch (altAudioError) {
+                          print('대체 음성도 실패: $altAudioError');
+                        }
+                      }
+
+                      // 성공 메시지 표시
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                const Icon(Icons.check_circle, color: Colors.white),
+                                const SizedBox(width: 8),
+                                Text('$exerciseName 1회 완료!'),
+                              ],
+                            ),
+                            backgroundColor: Colors.green,
+                            duration: const Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     } catch (e) {
-                      // print('오디오 재생오류:$e');
+                      print('운동 기록 저장 실패: $e');
+
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.error, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text('기록 저장에 실패했습니다'),
+                              ],
+                            ),
+                            backgroundColor: Colors.red,
+                            duration: Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     }
                   },
                   child: const Text('운동하기'),
@@ -511,6 +561,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                 const SizedBox(width: 16),
 
                 // 다음 / 오늘의 운동 완료
+                // 마지막 운동일 때의 버튼을 다음과 같이 수정
                 if (!isLast)
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
@@ -519,7 +570,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      _audioPlayer.stop();  // <-- 오디오 정지 추가
+                      _audioPlayer.stop();
                       _goToNextExercise();
                     },
                     child: const Text('다음'),
@@ -528,31 +579,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       minimumSize: const Size(150, 50),
-                      backgroundColor: Colors.green,
+                      backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
                     ),
-                    onPressed: () async {
+                    onPressed: () {
                       _audioPlayer.stop();
 
-                      final today = DateTime.now();
-
-                      try {
-                        // 1) Firebase에 탭 완료 기록 저장
-                        final exerciseNames = widget.exercises.map((e) => e.title).toList();
-                        await FirebaseExerciseService.saveCompletedTab(
-                          tabName: widget.tabName,
-                          exerciseNames: exerciseNames,
-                          date: today,
-                        );
-
-                        // 2) 로컬 운동 기록에도 "완료" 추가
-                        Provider.of<ExerciseLog>(context, listen: false)
-                            .addExercise(today, "${widget.tabName} 완료");
-                      } catch (e) {
-                        print('Firebase 저장 실패: $e');
-                      }
-
-                      // 3) 완료 팝업 띄우기
+                      // 완료 팝업만 띄우고 Firebase 조작은 하지 않음
                       showDialog(
                         context: context,
                         barrierDismissible: false,
@@ -562,7 +595,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                             borderRadius: BorderRadius.circular(16.0),
                           ),
                           title: Text(
-                            "${widget.tabName} 완료! 🎉",
+                            "${widget.tabName} 운동 완료!",
                             style: const TextStyle(
                               color: Colors.black87,
                               fontWeight: FontWeight.bold,
@@ -570,7 +603,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                             ),
                           ),
                           content: const Text(
-                            "모든 운동을 끝냈습니다! 수고하셨습니다.\n\n어디로 이동하시겠어요?",
+                            "모든 운동을 마쳤습니다!\n각 운동을 더 많이 하면 탭 완료 횟수가 증가합니다.\n\n어디로 이동하시겠어요?",
                             style: TextStyle(
                               color: Colors.black87,
                               fontSize: 16,
@@ -604,7 +637,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                         ),
                       );
                     },
-                    child: Text('${widget.tabName} 완료'), // ✅ const 제거
+                    child: const Text('운동 마무리'),
                   ),
               ],
             ),
