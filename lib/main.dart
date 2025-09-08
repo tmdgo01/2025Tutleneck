@@ -14,18 +14,29 @@ import 'package:finalproject/scr/tracking_page.dart' as tracking;
 import 'package:finalproject/scr/splash.dart';
 import 'package:finalproject/posture_pal_page.dart' as posture;
 import 'dart:async';
+import 'background_alarm_service.dart';
+import 'alarm_data.dart';
 
 List<CameraDescription> cameras = [];
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
+  await Firebase.initializeApp();
 
   try {
     cameras = await availableCameras();
     print('사용 가능한 카메라: ${cameras.length}개');
   } catch (e) {
     print('카메라 초기화 실패: $e');
+  }
+  await BackgroundAlarmService.initialize(navigatorKey: navigatorKey);
+
+  // 알람 권한 요청
+  bool granted = await BackgroundAlarmService.requestPermissions();
+  if (!granted) {
+    print('⚠️ 알람 권한 거부됨');
   }
 
   runApp(const EntryPoint());
@@ -42,48 +53,114 @@ class EntryPoint extends StatelessWidget {
     );
   }
 }
-
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _scheduleAlarmsOnStart(); // 앱 시작 시 알람 예약
+  }
+
+  /// 앱 시작 시 Firestore에서 알람 데이터를 가져와 예약
+  Future<void> _scheduleAlarmsOnStart() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Firestore에서 알람 컬렉션 불러오기
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('alarms')
+          .get();
+
+      // AlarmData 객체로 변환 후 활성 알람만 필터링
+      final alarms = snapshot.docs
+          .map((doc) => AlarmData.fromMap(doc.data()))
+          .where((alarm) => alarm.isAlarmEnabled)
+          .toList();
+
+      if (alarms.isEmpty) {
+        print('⚠️ 활성 알람이 없습니다.');
+        return;
+      }
+
+      // 알람 예약
+      await BackgroundAlarmService.scheduleAllAlarms(alarms);
+
+      // 예약된 알람 로그 확인
+      await BackgroundAlarmService.printScheduledNotifications();
+
+      print('✅ 알람 예약 완료: ${alarms.length}개');
+    } catch (e) {
+      print('⚠️ 알람 예약 실패: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: FutureBuilder(
-        future: Firebase.initializeApp(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Color(0xFFE4F3E1),
-              body: Center(
-                child: CircularProgressIndicator(color: Colors.green),
-              ),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return const Scaffold(
-              backgroundColor: Color(0xFFE4F3E1),
-              body: Center(
-                child: Text(
-                  'Firebase 초기화 중 오류가 발생했습니다.',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            );
-          }
-
-          return const AuthWrapper();
-        },
-      ),
+      home: const AuthWrapper(),
       routes: {
         '/home': (context) => const HomeScreen(),
         '/auth': (context) => const AuthScreen(),
+        '/alarm': (context) => const AlarmListPage(),
       },
     );
   }
 }
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       navigatorKey: navigatorKey,
+//       debugShowCheckedModeBanner: false,
+//       home: FutureBuilder(
+//         future: Firebase.initializeApp(),
+//         builder: (context, snapshot) {
+//           if (snapshot.connectionState == ConnectionState.waiting) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: CircularProgressIndicator(color: Colors.green),
+//               ),
+//             );
+//           }
+//
+//           if (snapshot.hasError) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: Text(
+//                   'Firebase 초기화 중 오류가 발생했습니다.',
+//                   style: TextStyle(color: Colors.red),
+//                 ),
+//               ),
+//             );
+//           }
+//
+//           return const AuthWrapper();
+//         },
+//       ),
+//       routes: {
+//         '/home': (context) => const HomeScreen(),
+//         '/auth': (context) => const AuthScreen(),
+//         '/alarm': (context) => const AlarmListPage(),
+//       },
+//     );
+//   }
+// }
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});

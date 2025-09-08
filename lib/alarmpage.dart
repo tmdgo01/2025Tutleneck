@@ -1,85 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'exercise_screen.dart';
+import 'dart:async';
 
 class AlarmPage extends StatefulWidget {
-  final String? alarmLabel;
-  final String? alarmTime;
+  final String alarmLabel;
+  final String alarmTime;
+  final VoidCallback? onDismiss;
 
   const AlarmPage({
     super.key,
-    this.alarmLabel,
-    this.alarmTime,
+    required this.alarmLabel,
+    required this.alarmTime,
+    this.onDismiss,
   });
 
   @override
   State<AlarmPage> createState() => _AlarmPageState();
 }
 
-class _AlarmPageState extends State<AlarmPage>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+class _AlarmPageState extends State<AlarmPage> with TickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late AnimationController _bounceController;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _bounceAnimation;
+  Timer? _vibrationTimer;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 1),
+
+    // 펄스 애니메이션 (거북이 주변 원)
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+
+    // 바운스 애니메이션 (거북이)
+    _bounceController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
     _pulseAnimation = Tween<double>(
-      begin: 0.95,
-      end: 1.05,
+      begin: 1.0,
+      end: 1.1,
     ).animate(CurvedAnimation(
-      parent: _animationController,
+      parent: _pulseController,
       curve: Curves.easeInOut,
     ));
 
-    // 펄스 애니메이션 반복
-    _animationController.repeat(reverse: true);
+    _bounceAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _bounceController,
+      curve: Curves.elasticInOut,
+    ));
+
+    // 애니메이션 시작
+    _pulseController.repeat(reverse: true);
+    _bounceController.repeat(reverse: true);
+
+    // 주기적 진동
+    _startVibration();
+
+    // 시스템 UI 숨기기 (전체화면)
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _pulseController.dispose();
+    _bounceController.dispose();
+    _vibrationTimer?.cancel();
+
+    // 시스템 UI 복원
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
+        overlays: SystemUiOverlay.values);
+
     super.dispose();
   }
 
-  void _handleDismiss() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _SnoozeDialog(
-        onSnooze: () {
-          Navigator.of(context).pop(); // 다이얼로그 닫기
-          Navigator.of(context).pop(); // 알람 페이지 닫기
+  void _startVibration() {
+    // 즉시 진동
+    HapticFeedback.vibrate();
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('10분 후에 다시 알림이 울립니다.'),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        },
-        onCancel: () {
-          Navigator.of(context).pop(); // 다이얼로그 닫기
-          Navigator.of(context).pop(); // 알람 페이지 닫기
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('알람이 해제되었습니다.'),
-              backgroundColor: Colors.grey,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        },
-      ),
-    );
+    // 3초마다 진동 반복
+    _vibrationTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      HapticFeedback.vibrate();
+    });
   }
 
-  void _handleAccept() {
+  void _dismissAlarm() {
+    _vibrationTimer?.cancel();
+    widget.onDismiss?.call();
+    Navigator.of(context).pop();
+  }
+
+  void _acceptAlarm() {
+    _vibrationTimer?.cancel();
+    widget.onDismiss?.call();
+
+    // 운동 화면으로 이동
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => ExerciseScreen(),
@@ -90,280 +113,140 @@ class _AlarmPageState extends State<AlarmPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFE4F3E1),
+      backgroundColor: const Color(0xFFE4F3E1), // 연한 초록색 배경
       body: SafeArea(
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: Column(
-            children: [
-              const SizedBox(height: 60),
+        child: Column(
+          children: [
+            // 상단 제목
+            const SizedBox(height: 80),
+            const Text(
+              '운동해',
+              style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2E7D32),
+                letterSpacing: 2.0,
+              ),
+            ),
 
-              // 상단 제목
-              Text(
-                '운동해',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                  letterSpacing: 2.0,
+            // 중앙 거북이 영역
+            Expanded(
+              child: Center(
+                child: AnimatedBuilder(
+                  animation: _pulseAnimation,
+                  builder: (context, child) {
+                    return Transform.scale(
+                      scale: _pulseAnimation.value,
+                      child: Container(
+                        width: 280,
+                        height: 280,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 20,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: AnimatedBuilder(
+                            animation: _bounceAnimation,
+                            builder: (context, child) {
+                              return Transform.scale(
+                                scale: _bounceAnimation.value,
+                                child: Image.asset(
+                                  'asset/stand.png',
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // 이미지 로드 실패 시 대체 아이콘
+                                    return Container(
+                                      width: 120,
+                                      height: 120,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF4CAF50).withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(60),
+                                      ),
+                                      child: const Icon(
+                                        Icons.directions_run,
+                                        size: 60,
+                                        color: Color(0xFF4CAF50),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
+            ),
 
-              const SizedBox(height: 20),
-
-              // 알람 정보
-              if (widget.alarmTime != null)
-                Text(
-                  widget.alarmTime!,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-
-              if (widget.alarmLabel != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Text(
-                    widget.alarmLabel!,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black45,
-                    ),
-                  ),
-                ),
-
-              const Spacer(),
-
-              // 중앙 캐릭터 이미지
-              AnimatedBuilder(
-                animation: _pulseAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _pulseAnimation.value,
+            // 하단 버튼들
+            Padding(
+              padding: const EdgeInsets.only(bottom: 80),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // 거절 버튼 (빨간색 X)
+                  GestureDetector(
+                    onTap: _dismissAlarm,
                     child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        color: const Color(0xFFE57373), // 부드러운 빨간색
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 20,
-                            offset: Offset(0, 10),
+                            color: const Color(0xFFE57373).withOpacity(0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
                           ),
                         ],
                       ),
-                      child: Center(
-                        child: Image.asset(
-                          'asset/stand.png',
-                          width: 130,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 120,
-                              height: 120,
-                              decoration: BoxDecoration(
-                                color: Colors.green[200],
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.fitness_center,
-                                size: 60,
-                                color: Colors.white,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-
-              const Spacer(),
-
-              // 하단 버튼들 (정중앙 기준 좌우 배치)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Row(
-                  children: [
-                    Expanded(child: Container()),
-
-                    // 거절 버튼
-                    GestureDetector(
-                      onTap: _handleDismiss,
-                      child: Container(
-                        width: 70,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: Colors.red[400],
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.red.withOpacity(0.3),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 35,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 150), // ✅ 버튼 사이 간격
-
-                    // 수락 버튼
-                    GestureDetector(
-                      onTap: _handleAccept,
-                      child: Container(
-                        width: 70,
-                        height: 70,
-                        decoration: BoxDecoration(
-                          color: Colors.green[400],
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.green.withOpacity(0.3),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 35,
-                        ),
-                      ),
-                    ),
-
-                    Expanded(child: Container()),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 80),
-
-              // 하단 안내 텍스트
-              const Text(
-                '전 화 받 아',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black54,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-
-              const SizedBox(height: 40),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// 스누즈 다이얼로그
-class _SnoozeDialog extends StatelessWidget {
-  final VoidCallback onSnooze;
-  final VoidCallback onCancel;
-
-  const _SnoozeDialog({
-    required this.onSnooze,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.access_time,
-              size: 50,
-              color: Colors.orange,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              '10분 후에 다시 울릴까요?',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: onCancel,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: Colors.grey),
-                      ),
-                    ),
-                    child: const Text(
-                      'No',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: onSnooze,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    child: const Text(
-                      'Yes',
-                      style: TextStyle(
-                        fontSize: 16,
+                      child: const Icon(
+                        Icons.close,
                         color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                        size: 32,
                       ),
                     ),
                   ),
-                ),
-              ],
+
+                  // 수락 버튼 (초록색 전화)
+                  GestureDetector(
+                    onTap: _acceptAlarm,
+                    child: Container(
+                      width: 70,
+                      height: 70,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF66BB6A), // 부드러운 초록색
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF66BB6A).withOpacity(0.3),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.call,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

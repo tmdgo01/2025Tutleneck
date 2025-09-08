@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:math';
-import 'alarm_data.dart'; // lib 폴더 직접 참조
+import 'alarm_data.dart';
 
 class AlarmSettingsPage extends StatefulWidget {
-  final Function(AlarmData)? onAlarmCreated;
-  final AlarmData? existingAlarm; // 기존 알람 데이터
+  final AlarmData? existingAlarm; // 수정용 기존 알람
+  final Function(AlarmData)? onAlarmCreated; // 콜백 (사용 안 함)
 
   const AlarmSettingsPage({
     super.key,
+    this.existingAlarm,
     this.onAlarmCreated,
-    this.existingAlarm, // 수정모드용 기존 알람
   });
 
   @override
@@ -17,46 +16,42 @@ class AlarmSettingsPage extends StatefulWidget {
 }
 
 class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
-  final List<String> _labels = ['일상 스트레칭', '증상 완화 운동', '폼롤러 운동'];
-  String? _selectedLabel;
-  List<bool> activeDays = List.generate(7, (_) => false);
-  final List<String> dayLabels = ['일','월','화','수','목','금','토'];
-  int selectedInterval = 1;
-  final List<int> intervalOptions = [1,2,3];
-  int startHour = 9;
-  int startMinute = 0;
-  int endHour = 18;
-  int endMinute = 0;
-  String alarmLabel = '';
-  bool _isSaving = false;
+  late TextEditingController _labelController;
+  late TimeOfDay _startTime;
+  late TimeOfDay _endTime;
+  late int _selectedInterval;
+  late List<bool> _activeDays;
 
-  late final TextEditingController _labelController; // 추가
-  bool get isEditMode => widget.existingAlarm != null; // 수정 모드인지 확인
+  final List<String> _dayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+  final List<int> _intervalOptions = [1, 2, 3];
 
   @override
   void initState() {
     super.initState();
-    _labelController = TextEditingController();
 
-    // 기존 알람이 있으면 해당 데이터로 초기화
     if (widget.existingAlarm != null) {
+      // 기존 알람 수정
       final alarm = widget.existingAlarm!;
+      _labelController = TextEditingController(text: alarm.label ?? '');
+      _startTime = TimeOfDay(hour: alarm.startHour, minute: alarm.startMinute);
+      _endTime = TimeOfDay(hour: alarm.endHour, minute: alarm.endMinute);
 
-      // DropdownButton용 _selectedLabel은 _labels에 있는 값만 설정
-      if (alarm.label != null && _labels.contains(alarm.label)) {
-        _selectedLabel = alarm.label;
+      // 기존 간격이 현재 옵션에 없으면 기본값으로 설정
+      if (_intervalOptions.contains(alarm.selectedInterval)) {
+        _selectedInterval = alarm.selectedInterval;
       } else {
-        _selectedLabel = null; // DropdownButton은 null로 설정
+        _selectedInterval = 2; // 기본값 2시간
+        print('기존 알람의 간격(${alarm.selectedInterval}시간)이 현재 옵션에 없어 2시간으로 변경됩니다.');
       }
 
-      activeDays = List.from(alarm.activeDays);
-      selectedInterval = alarm.selectedInterval;
-      startHour = alarm.startHour;
-      startMinute = alarm.startMinute;
-      endHour = alarm.endHour;
-      endMinute = alarm.endMinute;
-      alarmLabel = alarm.label ?? ''; // TextField용은 실제 라벨 값 사용
-      _labelController.text = alarm.label ?? '';
+      _activeDays = List.from(alarm.activeDays);
+    } else {
+      // 새 알람 생성
+      _labelController = TextEditingController(text: '운동 알람');
+      _startTime = const TimeOfDay(hour: 9, minute: 0);
+      _endTime = const TimeOfDay(hour: 18, minute: 0);
+      _selectedInterval = 2;
+      _activeDays = [false, true, true, true, true, true, false]; // 평일 기본
     }
   }
 
@@ -66,255 +61,100 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
     super.dispose();
   }
 
-  String _generateUniqueId() =>
-      DateTime.now().millisecondsSinceEpoch.toString() +
-          Random().nextInt(1000).toString();
+  // 하루 알람 횟수 계산 메서드
+  int _calculateDailyAlarmCount() {
+    final startMinutes = _startTime.hour * 60 + _startTime.minute;
+    final endMinutes = _endTime.hour * 60 + _endTime.minute;
+    final totalMinutes = endMinutes - startMinutes;
+    final intervalMinutes = _selectedInterval * 60;
 
-  bool _hasActiveDay() => activeDays.any((d) => d);
-  bool _isValidTimeRange() => (endHour * 60 + endMinute) > (startHour * 60 + startMinute);
+    if (totalMinutes <= 0 || intervalMinutes <= 0) return 0;
 
-  String _formatTime(int hour, int minute) {
-    String period = hour < 12 ? '오전' : '오후';
-    int displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$period ${displayHour.toString().padLeft(2,'0')}:${minute.toString().padLeft(2,'0')}';
+    // 시작 시간부터 간격마다 울리는 횟수 계산
+    return (totalMinutes / intervalMinutes).floor() + 1;
   }
 
-  Future<void> _showTimePicker(BuildContext context, bool isStartTime) async {
-    int tempHour = isStartTime ? startHour : endHour;
-    int tempMinute = isStartTime ? startMinute : endMinute;
+  String _formatTimeOfDay(TimeOfDay time) {
+    String period = time.hour < 12 ? '오전' : '오후';
+    int displayHour = time.hour == 0 ? 12 : (time.hour > 12 ? time.hour - 12 : time.hour);
+    return '$period ${displayHour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+  }
 
-    FixedExtentScrollController hourController =
-    FixedExtentScrollController(initialItem: tempHour);
-    FixedExtentScrollController minuteController =
-    FixedExtentScrollController(initialItem: tempMinute);
-
-    showModalBottomSheet(
+  Future<void> _selectTime(BuildContext context, bool isStartTime) async {
+    final TimeOfDay? picked = await showTimePicker(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          height: 350,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('취소', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                  ),
-                  Text(
-                    isStartTime ? '시작 시간 설정' : '종료 시간 설정',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        if (isStartTime) {
-                          startHour = tempHour;
-                          startMinute = tempMinute;
-                        } else {
-                          endHour = tempHour;
-                          endMinute = tempMinute;
-                        }
-                      });
-                      Navigator.pop(context);
-                    },
-                    child: const Text('완료', style: TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ListWheelScrollView.useDelegate(
-                        controller: hourController,
-                        itemExtent: 50,
-                        perspective: 0.005,
-                        diameterRatio: 1.2,
-                        physics: const FixedExtentScrollPhysics(),
-                        onSelectedItemChanged: (int index) => tempHour = index,
-                        childDelegate: ListWheelChildBuilderDelegate(
-                          childCount: 24,
-                          builder: (context, index) => Container(
-                            alignment: Alignment.center,
-                            child: Text(
-                              index.toString().padLeft(2, '0'),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Text(' : ', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600)),
-                    Expanded(
-                      child: ListWheelScrollView.useDelegate(
-                        controller: minuteController,
-                        itemExtent: 50,
-                        perspective: 0.005,
-                        diameterRatio: 1.2,
-                        physics: const FixedExtentScrollPhysics(),
-                        onSelectedItemChanged: (int index) => tempMinute = index,
-                        childDelegate: ListWheelChildBuilderDelegate(
-                          childCount: 60,
-                          builder: (context, index) => Container(
-                            alignment: Alignment.center,
-                            child: Text(
-                              index.toString().padLeft(2, '0'),
-                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    ).whenComplete(() {
-      hourController.dispose();
-      minuteController.dispose();
-    });
-  }
-
-  void _resetAllSettings() {
-    setState(() {
-      activeDays = List.generate(7, (_) => false);
-      selectedInterval = 1;
-      startHour = 9;
-      startMinute = 0;
-      endHour = 18;
-      endMinute = 0;
-      alarmLabel = '';
-      _selectedLabel = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('모든 설정이 초기화되었습니다.'),
-        backgroundColor: Colors.orange[400],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-
-  Future<void> _saveSettings() async {
-    if (!_hasActiveDay()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('운동 실행 할 요일을 선택해주세요'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-
-    if (!_isValidTimeRange()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('시작 시간이 종료 시간보다 늦을 수 없습니다.'), backgroundColor: Colors.orange),
-      );
-      return;
-    }
-
-    setState(() => _isSaving = true);
-
-    try {
-      final AlarmData alarmData;
-
-      if (isEditMode) {
-        // 수정 모드: 기존 알람의 ID와 생성일자 유지
-        alarmData = AlarmData(
-          id: widget.existingAlarm!.id, // 기존 ID 유지
-          activeDays: List.from(activeDays),
-          startHour: startHour,
-          startMinute: startMinute,
-          endHour: endHour,
-          endMinute: endMinute,
-          selectedInterval: selectedInterval,
-          isAlarmEnabled: widget.existingAlarm!.isAlarmEnabled, // 기존 상태 유지
-          createdAt: widget.existingAlarm!.createdAt, // 기존 생성일자 유지
-          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
-        );
-      } else {
-        // 새 알람 생성 모드
-        alarmData = AlarmData(
-          id: _generateUniqueId(),
-          activeDays: List.from(activeDays),
-          startHour: startHour,
-          startMinute: startMinute,
-          endHour: endHour,
-          endMinute: endMinute,
-          selectedInterval: selectedInterval,
-          isAlarmEnabled: true,
-          createdAt: DateTime.now(),
-          label: alarmLabel.trim().isEmpty ? null : alarmLabel.trim(),
-        );
-      }
-
-      if (widget.onAlarmCreated != null) {
-        widget.onAlarmCreated!(alarmData);
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isEditMode ? '알람이 수정되었습니다!' : '운동 알람이 저장되었습니다!'),
-          backgroundColor: Colors.green[400],
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      );
-
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Navigator.pop으로 알람 데이터 반환
-      Navigator.pop(context, alarmData);
-
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('알람 저장에 실패했습니다: $e'), backgroundColor: Colors.red),
-      );
-    } finally {
-      setState(() => _isSaving = false);
-    }
-  }
-
-  String _getActiveDaysString() {
-    List<String> activeDayNames = [];
-    for (int i = 0; i < activeDays.length; i++) {
-      if (activeDays[i]) activeDayNames.add(dayLabels[i]);
-    }
-    return activeDayNames.join(', ');
-  }
-
-  Widget _buildDayButton(int index) {
-    final isActive = activeDays[index];
-    return GestureDetector(
-      onTap: () => setState(() => activeDays[index] = !activeDays[index]),
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF4CAF50) : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Center(
-          child: Text(
-            dayLabels[index],
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.black,
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+      initialTime: isStartTime ? _startTime : _endTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: const Color(0xFF4CAF50),
             ),
           ),
-        ),
-      ),
+          child: child!,
+        );
+      },
     );
+
+    if (picked != null) {
+      setState(() {
+        if (isStartTime) {
+          _startTime = picked;
+          // 시작 시간이 종료 시간보다 늦으면 종료 시간 조정
+          if (_startTime.hour > _endTime.hour ||
+              (_startTime.hour == _endTime.hour && _startTime.minute >= _endTime.minute)) {
+            _endTime = TimeOfDay(
+              hour: (_startTime.hour + 4) % 24,
+              minute: _startTime.minute,
+            );
+          }
+        } else {
+          _endTime = picked;
+          // 종료 시간이 시작 시간보다 이르면 시작 시간 조정
+          if (_endTime.hour < _startTime.hour ||
+              (_endTime.hour == _startTime.hour && _endTime.minute <= _startTime.minute)) {
+            _startTime = TimeOfDay(
+              hour: (_endTime.hour - 1 + 24) % 24,
+              minute: _endTime.minute,
+            );
+          }
+        }
+      });
+    }
+  }
+
+  void _saveAlarm() {
+    // 유효성 검사
+    if (_labelController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('알람 제목을 입력해주세요')),
+      );
+      return;
+    }
+
+    if (!_activeDays.contains(true)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('최소 하나의 요일을 선택해주세요')),
+      );
+      return;
+    }
+
+    // 알람 데이터 생성
+    final alarmData = AlarmData(
+      id: widget.existingAlarm?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      activeDays: _activeDays,
+      startHour: _startTime.hour,
+      startMinute: _startTime.minute,
+      endHour: _endTime.hour,
+      endMinute: _endTime.minute,
+      selectedInterval: _selectedInterval,
+      isAlarmEnabled: widget.existingAlarm?.isAlarmEnabled ?? true,
+      createdAt: widget.existingAlarm?.createdAt ?? DateTime.now(),
+      label: _labelController.text.trim(),
+    );
+
+    // 결과 반환
+    Navigator.of(context).pop(alarmData);
   }
 
   @override
@@ -322,61 +162,54 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFE4F3E1),
       appBar: AppBar(
-        title: Text(isEditMode ? '알람 수정' : '운동 알람 설정'),
+        title: Text(widget.existingAlarm != null ? '알람 수정' : '새 알람'),
         backgroundColor: const Color(0xFFE4F3E1),
         elevation: 0,
+        actions: [
+          TextButton(
+            onPressed: _saveAlarm,
+            child: const Text(
+              '저장',
+              style: TextStyle(
+                color: Color(0xFF4CAF50),
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 운동 부위 선택
-            const Text('운동 종류', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _selectedLabel,
-                  hint: const Text('종류를 선택하세요'),
-                  items: _labels.map((label) => DropdownMenuItem(value: label, child: Text(label))).toList(),
-                  onChanged: (value) => setState(() => _selectedLabel = value),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
             // 알람 제목
             Card(
-              color: const Color(0xFFE4F3E1),
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('알람 제목 (선택사항)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 12),
+                    const Text(
+                      '알람 제목',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E7D32),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       controller: _labelController,
-                      onChanged: (value) => alarmLabel = value,
-                      decoration: InputDecoration(
-                        hintText: '예: 아침 운동, 점심 스트레칭',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      decoration: const InputDecoration(
+                        hintText: '예: 운동 시간',
+                        border: OutlineInputBorder(),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF4CAF50), width: 2),
+                          borderSide: BorderSide(color: Color(0xFF4CAF50)),
                         ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
                       ),
                     ),
                   ],
@@ -384,86 +217,146 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-
-            // 요일 선택
-            const Text('활성화된 요일', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: List.generate(7, (index) => _buildDayButton(index)),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
 
             // 시간 설정
-            const Text('운동 시작 시간 및 종료 시간', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('시작', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: () => _showTimePicker(context, true),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[300]!),
-                              ),
-                              child: Text(
-                                _formatTime(startHour, startMinute),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const Text(
+                      '시간 설정',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E7D32),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('종료', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          GestureDetector(
-                            onTap: () => _showTimePicker(context, false),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _selectTime(context, true),
                             child: Container(
-                              width: double.infinity,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Text(
-                                _formatTime(endHour, endMinute),
-                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.center,
+                              child: Column(
+                                children: [
+                                  const Text('시작 시간', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatTimeOfDay(_startTime),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4CAF50),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: Text('~', style: TextStyle(fontSize: 20)),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _selectTime(context, false),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Text('종료 시간', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatTimeOfDay(_endTime),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF4CAF50),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // 간격 설정 (드롭다운)
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '알람 간격',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E7D32),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<int>(
+                          value: _selectedInterval,
+                          isExpanded: true,
+                          items: _intervalOptions.map((interval) {
+                            return DropdownMenuItem<int>(
+                              value: interval,
+                              child: Text(
+                                '${interval}시간 간격',
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedInterval = value!;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '하루 총 ${_calculateDailyAlarmCount()}회 알림',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ],
@@ -471,41 +364,52 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-
-            // 운동 주기 설정
-            const Text('운동 주기', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
+
+            // 요일 설정
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: DropdownButton<int>(
-                        value: selectedInterval,
-                        underline: const SizedBox(),
-                        items: intervalOptions.map((value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(' $value ', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                        )).toList(),
-                        onChanged: (newValue) {
-                          if (newValue != null) {
-                            setState(() => selectedInterval = newValue);
-                          }
-                        },
+                    const Text(
+                      '반복 요일',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E7D32),
                       ),
                     ),
-                    const SizedBox(width: 20),
-                    const Text('시간 간격으로 알람', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: List.generate(7, (index) {
+                        final isSelected = _activeDays[index];
+                        return GestureDetector(
+                          onTap: () => setState(() => _activeDays[index] = !_activeDays[index]),
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected ? const Color(0xFF4CAF50) : Colors.grey[200],
+                            ),
+                            child: Center(
+                              child: Text(
+                                _dayLabels[index],
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.black,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
                   ],
                 ),
               ),
@@ -513,82 +417,55 @@ class _AlarmSettingsPageState extends State<AlarmSettingsPage> {
 
             const SizedBox(height: 32),
 
-            // 버튼들
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _resetAllSettings,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      side: const BorderSide(color: Colors.red, width: 2),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('초기화', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isSaving ? null : _saveSettings,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4CAF50),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: _isSaving
-                        ? const SizedBox(
-                      width: 24, height: 24,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                        : const Text('저장', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // 미리보기
-            if (_hasActiveDay() && _isValidTimeRange()) ...[
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    color: const Color(0xFFF8F9FA),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.preview, color: Color(0xFF4CAF50)),
-                          SizedBox(width: 8),
-                          Text('알람 미리보기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF4CAF50))),
-                        ],
+            // 미리보기 (흰색 배경)
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '미리보기',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2E7D32),
                       ),
-                      const SizedBox(height: 12),
-                      Text('• 활성 요일: ${_getActiveDaysString()}', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text('• 운동 시간: ${_formatTime(startHour, startMinute)} ~ ${_formatTime(endHour, endMinute)}', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text('• 알람 주기: ${selectedInterval}시간 간격', style: const TextStyle(fontSize: 14)),
-                      const SizedBox(height: 4),
-                      Text(
-                        '• 하루 예상 알람: ${((endHour * 60 + endMinute) - (startHour * 60 + startMinute)) ~/ (selectedInterval * 60) + 1}회',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _labelController.text.isNotEmpty ? _labelController.text : "운동 알람",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatTimeOfDay(_startTime)} ~ ${_formatTimeOfDay(_endTime)}',
+                      style: const TextStyle(fontSize: 16, color: Color(0xFF4CAF50)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_selectedInterval}시간 간격 • 하루 ${_calculateDailyAlarmCount()}회',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _activeDays.asMap().entries
+                          .where((entry) => entry.value)
+                          .map((entry) => _dayLabels[entry.key])
+                          .join(', '),
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  ],
                 ),
               ),
-            ],
-
-            const SizedBox(height: 40),
+            ),
           ],
         ),
       ),

@@ -1,6 +1,5 @@
 import 'package:finalproject/daily_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'exercise_data.dart';
