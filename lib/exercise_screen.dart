@@ -12,7 +12,7 @@ class ExerciseScreen extends StatelessWidget {
   final Map<String, List<String>> rawExerciseData = {
     '일상 스트레칭': [
       '턱 당기기',
-      '목 강화 운동1 (선 자세)',
+      '목 강화 운동1(선 자세)',
       '목 강화 운동2',
       '목 스트레칭1(앉은 자세)',
       '목 스트레칭2(앉은 자세)',
@@ -20,15 +20,15 @@ class ExerciseScreen extends StatelessWidget {
       '원 방향 목 돌리기',
     ],
     '증상 완화 운동': [
-      '벽 밀기 (대흉근 스트레칭)',
-      '가슴 스트레칭(소흉근 스트레칭)',
+      '벽 밀기',
+      '가슴 스트레칭',
       '목 강화 운동1',
       'WYT 자세 운동',
-      'Cat–Cow (척추 가동성 운동)',
+      '척추 가동성 운동',
     ],
     '폼롤러 운동': [
       '척추기립근 스트레칭',
-      '뒤통수 아래 스트레칭 (후두 하근 스트레칭)',
+      '뒤통수 아래 스트레칭',
       '폼롤러 체스트 오픈',
       '목 스트레칭',
       '등 전체 폼롤러 스트레칭',
@@ -197,6 +197,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   late int _currentIndex;
   late Exercise _currentExercise;
 
+  // 클래스 최상단에 상태 변수 추가
+  bool _isPlayingVoice = false;
+
   /// 시간표시 함수 ////
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -246,7 +249,18 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
         });
 
       _controller!.addListener(() {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+
+        final isEnded = _controller!.value.position >= _controller!.value.duration;
+
+        if (isEnded && _isPlaying) {
+          setState(() {
+            _isPlaying = false; // 영상이 끝났을 때 버튼 상태 변경
+          });
+        }
+
+        // 이건 재생 시간, 진행바 등 계속 갱신용
+        setState(() {});
       });
     } else {
       _controller = null;
@@ -488,9 +502,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       vertical: 12.0,
                     ),
                   ),
-                  onPressed: () async {
+                  onPressed: _isPlayingVoice ? null : () async {
                     final today = DateTime.now();
                     final exerciseName = _currentExercise.title;
+
+                    setState(() {
+                      _isPlayingVoice =true; // 버튼 비활성화
+                    });
 
                     try {
                       // Firebase에 운동 기록 저장
@@ -504,6 +522,16 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       try {
                         await _audioPlayer.play(AssetSource('vo1-1.mp3'));
                         print('음성 재생 성공');
+
+                        // 음성이 끝나면 다시 버튼 활성화
+                        _audioPlayer.onPlayerComplete.listen((event) {
+                          if (mounted) {
+                            setState(() {
+                              _isPlayingVoice = false;
+                            });
+                          }
+                        });
+
                       } catch (audioError) {
                         print('음성 재생 실패: $audioError');
 
@@ -517,6 +545,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                       }
 
                       // 성공 메시지 표시
+                      /*
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -533,6 +562,8 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                           ),
                         );
                       }
+                       */
+
                     } catch (e) {
                       print('운동 기록 저장 실패: $e');
 
@@ -552,6 +583,10 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                           ),
                         );
                       }
+
+                      setState(() {
+                        _isPlayingVoice = false;
+                      });
                     }
                   },
                   child: const Text('운동하기'),

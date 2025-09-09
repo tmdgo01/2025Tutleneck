@@ -24,32 +24,6 @@ class SettingScreen extends StatelessWidget {
         padding: const EdgeInsets.all(20.0),
         children: [
           _SettingsItem(
-            icon: Icons.nightlight_round,
-            title: '야간 알람 설정',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const _NightAlarmSettingScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _SettingsItem(
-            icon: Icons.volume_up,
-            title: '알람 사운드 설정',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const _AlarmSoundSettingScreen(),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          _SettingsItem(
             icon: Icons.bar_chart,
             title: '자세 측정 통계',
             onTap: () {
@@ -183,240 +157,6 @@ class _SettingsItem extends StatelessWidget {
   }
 }
 
-/// 야간 알람 설정 ///
-class _NightAlarmSettingScreen extends StatefulWidget {
-  const _NightAlarmSettingScreen({super.key});
-
-  @override
-  State<_NightAlarmSettingScreen> createState() => _NightAlarmSettingScreenState();
-}
-
-class _NightAlarmSettingScreenState extends State<_NightAlarmSettingScreen> {
-  TimeOfDay _startTime = const TimeOfDay(hour: 22, minute: 0); // 오후 10시
-  TimeOfDay _endTime = const TimeOfDay(hour: 7, minute: 0);    // 오전 7시
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE4F3E1),
-      appBar: AppBar(
-        title: const Text('야간 알람 설정'),
-        backgroundColor: const Color(0xFFE4F3E1),
-        elevation: 0,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20.0),
-        children: [
-          const SizedBox(height: 10),
-          const Text(
-            "🔔 야간 알람 설정",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // 시작 시간
-          ListTile(
-            tileColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            leading: const Icon(Icons.nightlight_round),
-            title: Text("시작 시간: ${_formatTime(_startTime)}"),
-            trailing: ElevatedButton(
-              onPressed: () => _selectTime(isStart: true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD2F0DC),
-                foregroundColor: Colors.black87,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-              child: const Text("변경"),
-            ),
-
-          ),
-          const SizedBox(height: 12),
-
-          // 종료 시간
-          ListTile(
-            tileColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            leading: const Icon(Icons.wb_sunny),
-            title: Text("종료 시간: ${_formatTime(_endTime)}"),
-            trailing: ElevatedButton(
-              onPressed: () => _selectTime(isStart: false),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD2F0DC),
-                foregroundColor: Colors.black87,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
-              child: const Text("변경"),
-            ),
-          ),
-          const SizedBox(height: 30),
-
-          // 저장 버튼
-          Center(
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.save),
-              label: const Text("설정 저장"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("야간 알람 시간대가 저장되었습니다.")),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 시간 선택
-  Future<void> _selectTime({required bool isStart}) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: isStart ? _startTime : _endTime,
-      initialEntryMode: TimePickerEntryMode.dial,
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            timePickerTheme: TimePickerThemeData(
-              backgroundColor: const Color(0xFFE4F3E1),
-              hourMinuteColor: Colors.white,
-              hourMinuteTextColor: Colors.black87,
-              dialHandColor: Colors.green,
-              dialBackgroundColor: Colors.white,
-              dialTextColor: Colors.black,
-              entryModeIconColor: Colors.green,
-              dayPeriodColor: MaterialStateColor.resolveWith((states) {
-                if (states.contains(MaterialState.selected)) {
-                  return Colors.green;
-                }
-                return Colors.green.shade100;
-              }),
-              dayPeriodTextColor: MaterialStateColor.resolveWith((states) {
-                return Colors.white;
-              }),
-              dayPeriodShape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide.none,
-              ),
-            ),
-            colorScheme: const ColorScheme.light(
-              primary: Colors.green,
-              onSurface: Colors.black87,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startTime = picked;
-        } else {
-          _endTime = picked;
-        }
-      });
-    }
-  }
-
-  /// 시간 포맷 (오전/오후 HH:MM)
-  String _formatTime(TimeOfDay time) {
-    final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final minute = time.minute.toString().padLeft(2, '0');
-    final period = time.period == DayPeriod.am ? "오전" : "오후";
-    return "$period $hour:$minute";
-  }
-}
-
-/////// 알람 사운드 설정 ///////
-class _AlarmSoundSettingScreen extends StatefulWidget {
-  const _AlarmSoundSettingScreen({super.key});
-
-  @override
-  State<_AlarmSoundSettingScreen> createState() => _AlarmSoundSettingScreenState();
-}
-
-class _AlarmSoundSettingScreenState extends State<_AlarmSoundSettingScreen> {
-  bool _vibrationEnabled = true;
-  bool _soundEnabled = true;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFE4F3E1),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFE4F3E1),
-        elevation: 0,
-        title: const Text('알람 사운드 설정'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            SwitchListTile(
-              title: const Text('🔔 소리 알림 사용'),
-              subtitle: const Text('알람 시 소리를 재생합니다.'),
-              value: _soundEnabled,
-              activeColor: Colors.green,
-              onChanged: (value) {
-                setState(() {
-                  _soundEnabled = value;
-                });
-              },
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              tileColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-            ),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              title: const Text('📳 진동 알림 사용'),
-              subtitle: const Text('알람 시 진동을 울립니다.'),
-              value: _vibrationEnabled,
-              activeColor: Colors.green,
-              onChanged: (value) {
-                setState(() {
-                  _vibrationEnabled = value;
-                });
-              },
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              tileColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('알람 설정이 저장되었습니다.')),
-                );
-              },
-              icon: const Icon(Icons.save),
-              label: const Text("설정 저장"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ExerciseStatsScreen extends StatefulWidget {
   const _ExerciseStatsScreen({super.key});
@@ -1109,92 +849,97 @@ class _PostureGoalSettingsPageState extends State<_PostureGoalSettingsPage> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '📊 일일 자세 점수 목표',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _dailyGoalController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '목표 점수 (0-100점)',
-                border: OutlineInputBorder(),
-                suffixText: '점',
-                helperText: '하루 동안 달성하고 싶은 자세 점수를 설정하세요',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '📊 일일 자세 점수 목표',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-            ),
-
-            const SizedBox(height: 32),
-
-            const Text(
-              '📅 주간 측정 목표',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _weeklyGoalController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: '주간 측정 일수 (1-7일)',
-                border: OutlineInputBorder(),
-                suffixText: '일',
-                helperText: '일주일에 몇 일 자세를 측정할지 설정하세요',
+              const SizedBox(height: 8),
+              TextField(
+                controller: _dailyGoalController,
+                keyboardType: TextInputType.number,
+                scrollPadding: const EdgeInsets.only(bottom: 100),
+                decoration: const InputDecoration(
+                  labelText: '목표 점수 (0-100점)',
+                  border: OutlineInputBorder(),
+                  suffixText: '점',
+                  helperText: '하루 동안 달성하고 싶은 자세 점수를 설정하세요',
+                ),
               ),
-            ),
 
-            const SizedBox(height: 40),
+              const SizedBox(height: 32),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _saveGoals,
-                icon: const Icon(Icons.save),
-                label: const Text('목표 저장', style: TextStyle(fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const Text(
+                '📅 주간 측정 목표',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _weeklyGoalController,
+                keyboardType: TextInputType.number,
+                scrollPadding: const EdgeInsets.only(bottom: 100),
+                decoration: const InputDecoration(
+                  labelText: '주간 측정 일수 (1-7일)',
+                  border: OutlineInputBorder(),
+                  suffixText: '일',
+                  helperText: '일주일에 몇 일 자세를 측정할지 설정하세요',
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _saveGoals,
+                  icon: const Icon(Icons.save),
+                  label: const Text('목표 저장', style: TextStyle(fontSize: 16)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // 현재 목표 표시
-            if (_dailyGoal != null && _weeklyGoal != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade200),
+              // 현재 목표 표시
+              if (_dailyGoal != null && _weeklyGoal != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '🎯 현재 설정된 목표',
+                        style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('• 일일 자세 점수 목표: ${_dailyGoal}점'),
+                      Text('• 주간 측정 일수 목표: 주 ${_weeklyGoal}일'),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      '🎯 현재 설정된 목표',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 8),
-                    Text('• 일일 자세 점수 목표: ${_dailyGoal}점'),
-                    Text('• 주간 측정 일수 목표: 주 ${_weeklyGoal}일'),
-                  ],
-                ),
-              ),
 
-            const SizedBox(height: 24),
-            // 로그아웃 버튼
-          ],
+              const SizedBox(height: 24),
+              // 로그아웃 버튼
+            ],
+          ),
         ),
       ),
     );

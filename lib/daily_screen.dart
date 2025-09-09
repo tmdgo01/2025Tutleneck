@@ -31,7 +31,7 @@ class _DailyScreenState extends State<DailyScreen> {
   // 🆕 NEW: 새로운 상세 운동 기록 관련
   Map<String, int> _tabCompletions = {};
   Map<String, int> _exerciseCompletions = {};
-  bool _showDetailedStats = false; // 상세 통계 표시 여부
+  bool _showDetailedStats = true; // 상세 통계 표시 여부
 
   @override
   void initState() {
@@ -329,70 +329,70 @@ class _DailyScreenState extends State<DailyScreen> {
               ),
 
               const SizedBox(height: 20.0),
-
-              // 타임랩스 + 자세 점수 박스
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Container(
-                      height: 70.0,
-                      margin: const EdgeInsets.only(right: 8.0),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD0E8D9),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '타임랩스',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16.0,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    width: 120.0,
-                    height: 70.0,
-                    decoration: BoxDecoration(
-                      color: _getScoreColor(_postureScore),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: _isLoadingScore
-                        ? const CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.0,
-                    )
-                        : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          _postureScore > 0
-                              ? '${_postureScore.toStringAsFixed(0)}점'
-                              : '기록없음',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: _postureScore > 0 ? 20.0 : 14.0,
-                            color: Colors.white,
-                          ),
-                        ),
-                        if (_postureScore > 0)
-                          Text(
-                            _getScoreMessage(_postureScore),
-                            style: const TextStyle(
-                              fontSize: 12.0,
-                              color: Colors.white70,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              //
+              // // 타임랩스 + 자세 점수 박스
+              // Row(
+              //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              //   children: [
+              //     Expanded(
+              //       child: Container(
+              //         height: 70.0,
+              //         margin: const EdgeInsets.only(right: 8.0),
+              //         decoration: BoxDecoration(
+              //           color: const Color(0xFFD0E8D9),
+              //           borderRadius: BorderRadius.circular(10),
+              //         ),
+              //         alignment: Alignment.center,
+              //         child: const Text(
+              //           '타임랩스',
+              //           textAlign: TextAlign.center,
+              //           style: TextStyle(
+              //             fontWeight: FontWeight.bold,
+              //             fontSize: 16.0,
+              //             color: Colors.black87,
+              //           ),
+              //         ),
+              //       ),
+              //     ),
+              //     Container(
+              //       width: 120.0,
+              //       height: 70.0,
+              //       decoration: BoxDecoration(
+              //         color: _getScoreColor(_postureScore),
+              //         borderRadius: BorderRadius.circular(10),
+              //       ),
+              //       alignment: Alignment.center,
+              //       child: _isLoadingScore
+              //           ? const CircularProgressIndicator(
+              //         color: Colors.white,
+              //         strokeWidth: 2.0,
+              //       )
+              //           : Column(
+              //         mainAxisAlignment: MainAxisAlignment.center,
+              //         children: [
+              //           Text(
+              //             _postureScore > 0
+              //                 ? '${_postureScore.toStringAsFixed(0)}점'
+              //                 : '기록없음',
+              //             style: TextStyle(
+              //               fontWeight: FontWeight.bold,
+              //               fontSize: _postureScore > 0 ? 20.0 : 14.0,
+              //               color: Colors.white,
+              //             ),
+              //           ),
+              //           if (_postureScore > 0)
+              //             Text(
+              //               _getScoreMessage(_postureScore),
+              //               style: const TextStyle(
+              //                 fontSize: 12.0,
+              //                 color: Colors.white70,
+              //               ),
+              //             ),
+              //         ],
+              //       ),
+              //     ),
+              //   ],
+              // ),
 
               const SizedBox(height: 10.0),
               const Divider(
@@ -580,63 +580,63 @@ class _DailyScreenState extends State<DailyScreen> {
                   color: Colors.black87,
                 ),
               ),
-              const Spacer(),
-              // 상세 통계 토글 버튼
-              IconButton(
-                icon: Icon(
-                  _showDetailedStats
-                      ? Icons.analytics_outlined
-                      : Icons.analytics,
-                  color: Colors.black,
-                ),
-                onPressed: () {
-                  setState(() {
-                    _showDetailedStats = !_showDetailedStats;
-                  });
-                },
-                tooltip: _showDetailedStats ? '간단히 보기' : '상세히 보기',
-              ),
+              // const Spacer(),
+              // // 상세 통계 토글 버튼
+              // IconButton(
+              //   icon: Icon(
+              //     _showDetailedStats
+              //         ? Icons.analytics_outlined
+              //         : Icons.analytics,
+              //     color: Colors.black,
+              //   ),
+              //   onPressed: () {
+              //     setState(() {
+              //       _showDetailedStats = !_showDetailedStats;
+              //     });
+              //   },
+              //   tooltip: _showDetailedStats ? '간단히 보기' : '상세히 보기',
+              // ),
               // 토글 상태 표시 (텍스트 + 배경)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: _showDetailedStats
-                      ? Colors.blue[100]
-                      : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _showDetailedStats ? Icons.analytics : Icons.list,
-                      size: 14,
-                      color: _showDetailedStats
-                          ? Colors.blue[700]
-                          : Colors.grey[600],
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _showDetailedStats ? '상세모드' : '간단모드',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _showDetailedStats
-                            ? Colors.blue[700]
-                            : Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // Container(
+              //   padding: const EdgeInsets.symmetric(
+              //     horizontal: 8,
+              //     vertical: 4,
+              //   ),
+              //   decoration: BoxDecoration(
+              //     color: _showDetailedStats
+              //         ? Colors.blue[100]
+              //         : Colors.grey[200],
+              //     borderRadius: BorderRadius.circular(12),
+              //   ),
+              // child: Row(
+              //   mainAxisSize: MainAxisSize.min,
+              //   children: [
+              //     Icon(
+              //       _showDetailedStats ? Icons.analytics : Icons.list,
+              //       size: 14,
+              //       color: _showDetailedStats
+              //           ? Colors.blue[700]
+              //           : Colors.grey[600],
+              //     ),
+              //     const SizedBox(width: 4),
+              //     // Text(
+              //     //   _showDetailedStats ? '상세모드' : '간단모드',
+              //     //   style: TextStyle(
+              //     //     fontSize: 12,
+              //     //     color: _showDetailedStats
+              //     //         ? Colors.blue[700]
+              //     //         : Colors.grey[600],
+              //     //     fontWeight: FontWeight.w500,
+              //     //   ),
+              //     // ),
+              //   ],
+              // ),
+
             ],
           ),
         ),
 
-  // 조건부 위젯 표시
+        // 조건부 위젯 표시
         if (_showDetailedStats && _selectedDay != null)
           DetailedExerciseProgressWidget(date: _selectedDay!) // 🆕 상세 운동 기록
         else

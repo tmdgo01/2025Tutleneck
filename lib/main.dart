@@ -245,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Column(
                 children: [
                   SizedBox(
-                    width: 190,
+                    width: 170,
                     child: Image.asset(
                       'asset/logo.png',
                       fit: BoxFit.contain,
@@ -270,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 30),
 
               // Firebase 실시간 자세 점수 표시 - 수정된 부분
               Container(
@@ -371,13 +371,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     if (score >= 80) {
                       scoreColor = Colors.green[700]!;
-                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (훌륭해요!)';
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이에요. 훌륭해요!)';
                     } else if (score >= 60) {
                       scoreColor = Colors.orange[700]!;
-                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (괜찮아요!)';
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이네요. 조금만 신경 써주세요.';
                     } else if (score > 0) {
                       scoreColor = Colors.red[700]!;
-                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (개선이 필요해요)';
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이에요... 자세를 고쳐야 해요';
                     } else {
                       scoreColor = Colors.grey[600]!;
                       scoreMessage = '아직 자세 측정 기록이 없어요';
@@ -416,81 +416,86 @@ class _HomeScreenState extends State<HomeScreen> {
 
               // 메뉴 버튼
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildMenuButton(
-                      icon: Icons.monitor_heart,
-                      label: '측정',
-                      color: const Color(0xFFF1F3C9),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const posture.PosturePalPage(),
-                          ),
-                        );
-                      },
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 20), // 상단 여백 추가
+                        _buildMenuButton(
+                          icon: Icons.monitor_heart,
+                          label: '측정',
+                          color: const Color(0xFFF1F3C9),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const posture.PosturePalPage()),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMenuButton(
+                          icon: Icons.calendar_month,
+                          label: '일지',
+                          color: const Color(0xFFD2F0DC),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const DailyScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMenuButton(
+                          icon: Icons.fitness_center,
+                          label: '운동',
+                          color: const Color(0xFFF1F3C9),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ExerciseScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMenuButton(
+                          icon: Icons.access_alarms_outlined,
+                          label: '알람',
+                          color: const Color(0xFFD2F0DC),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AlarmListPage(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        _buildMenuButton(
+                          icon: Icons.settings,
+                          label: '설정',
+                          color: const Color(0xFFF1F3C9),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SettingScreen(),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20), // 하단 여백 추가
+                      ],
                     ),
-                    const SizedBox(height: 16),
-                    _buildMenuButton(
-                      icon: Icons.calendar_month,
-                      label: '일지',
-                      color: const Color(0xFFD2F0DC),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const DailyScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMenuButton(
-                      icon: Icons.fitness_center,
-                      label: '운동',
-                      color: const Color(0xFFF1F3C9),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ExerciseScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMenuButton(
-                      icon: Icons.access_alarms_outlined,
-                      label: '알람',
-                      color: const Color(0xFFD2F0DC),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const AlarmListPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildMenuButton(
-                      icon: Icons.settings,
-                      label: '설정',
-                      color: const Color(0xFFF1F3C9),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => SettingScreen(), // const 제거
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                  ),
                 ),
               ),
-
               const SizedBox(height: 32),
             ],
           ),
