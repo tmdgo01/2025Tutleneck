@@ -1,29 +1,201 @@
 import 'package:finalproject/exercise_screen.dart';
-import 'package:finalproject/setting-screen.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:finalproject/setting_screen.dart';
+import 'package:finalproject/setting_screen.dart';
+import 'package:finalproject/auth_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:camera/camera.dart';
+import 'package:finalproject/alarm_list_page.dart';
+import 'package:finalproject/posture_service.dart'; // Firebase 자세 점수 서비스
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:table_calendar/table_calendar.dart';
-import 'alarm_list_page.dart';
-import 'daily_screen.dart';
 import 'package:provider/provider.dart';
-import 'exercise_screen.dart';
+import 'daily_screen.dart';
+import 'package:finalproject/scr/tracking_page.dart' as tracking;
+import 'package:finalproject/scr/splash.dart';
+import 'package:finalproject/posture_pal_page.dart' as posture;
 import 'dart:async';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lottie/lottie.dart';
+import 'background_alarm_service.dart';
+import 'alarm_data.dart';
+
+List<CameraDescription> cameras = [];
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting();
+  await Firebase.initializeApp();
+
+  try {
+    cameras = await availableCameras();
+    print('사용 가능한 카메라: ${cameras.length}개');
+  } catch (e) {
+    print('카메라 초기화 실패: $e');
+  }
+  await BackgroundAlarmService.initialize(navigatorKey: navigatorKey);
+
+  // 알람 권한 요청
+  bool granted = await BackgroundAlarmService.requestPermissions();
+  if (!granted) {
+    print('⚠️ 알람 권한 거부됨');
+  }
 
   runApp(
-      ChangeNotifierProvider(
-        create: (context) => ExerciseLog(),
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: _LoadingScreen(),
-        ),
-      ));
+    MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => ExerciseLog()),
+        ],
+      child: const EntryPoint(),
+    ),
+    );
+}
+
+class EntryPoint extends StatelessWidget {
+  const EntryPoint({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: SplashScreen(), // 스플래시 먼저 보여줌
+    );
+  }
+}
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _scheduleAlarmsOnStart(); // 앱 시작 시 알람 예약
+  }
+
+  /// 앱 시작 시 Firestore에서 알람 데이터를 가져와 예약
+  Future<void> _scheduleAlarmsOnStart() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      // Firestore에서 알람 컬렉션 불러오기
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('alarms')
+          .get();
+
+      // AlarmData 객체로 변환 후 활성 알람만 필터링
+      final alarms = snapshot.docs
+          .map((doc) => AlarmData.fromMap(doc.data()))
+          .where((alarm) => alarm.isAlarmEnabled)
+          .toList();
+
+      if (alarms.isEmpty) {
+        print('⚠️ 활성 알람이 없습니다.');
+        return;
+      }
+
+      // 알람 예약
+      await BackgroundAlarmService.scheduleAllAlarms(alarms);
+
+      // 예약된 알람 로그 확인
+      await BackgroundAlarmService.printScheduledNotifications();
+
+      print('✅ 알람 예약 완료: ${alarms.length}개');
+    } catch (e) {
+      print('⚠️ 알람 예약 실패: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: navigatorKey,
+      debugShowCheckedModeBanner: false,
+      home: const AuthWrapper(),
+      routes: {
+        '/home': (context) => const HomeScreen(),
+        '/auth': (context) => const AuthScreen(),
+        '/alarm': (context) => const AlarmListPage(),
+      },
+    );
+  }
+}
+
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       navigatorKey: navigatorKey,
+//       debugShowCheckedModeBanner: false,
+//       home: FutureBuilder(
+//         future: Firebase.initializeApp(),
+//         builder: (context, snapshot) {
+//           if (snapshot.connectionState == ConnectionState.waiting) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: CircularProgressIndicator(color: Colors.green),
+//               ),
+//             );
+//           }
+//
+//           if (snapshot.hasError) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: Text(
+//                   'Firebase 초기화 중 오류가 발생했습니다.',
+//                   style: TextStyle(color: Colors.red),
+//                 ),
+//               ),
+//             );
+//           }
+//
+//           return const AuthWrapper();
+//         },
+//       ),
+//       routes: {
+//         '/home': (context) => const HomeScreen(),
+//         '/auth': (context) => const AuthScreen(),
+//         '/alarm': (context) => const AlarmListPage(),
+//       },
+//     );
+//   }
+// }
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFE4F3E1),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.green),
+            ),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return const HomeScreen();
+        } else {
+          return const AuthScreen();
+        }
+      },
+    );
+  }
 }
 
 class HomeScreen extends StatefulWidget {
@@ -34,408 +206,349 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int dailyGoal = 3;  // 기본값
-  int weeklyGoal = 5;  // 기본값
-
-  String goalMessage = '';
-
+  String userName = '사용자';
+  final PostureService _postureService = PostureService();
 
   @override
   void initState() {
     super.initState();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadGoalsAndCheck();
-    });
-
+    _loadUserInfo();
   }
 
-  Future<void> _loadGoalsAndCheck() async {
-    final prefs = await SharedPreferences.getInstance();
-    int loadedDailyGoal = prefs.getInt('dailyGoal') ?? 3;
-    int loadedWeeklyGoal = prefs.getInt('weeklyGoal') ?? 5;
+  Future<void> _loadUserInfo() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        DocumentSnapshot userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-    setState(() {
-      dailyGoal = loadedDailyGoal;
-      weeklyGoal = loadedWeeklyGoal;
-    });
-
-    _checkGoals();
-  }
-
-  void _checkGoals() {
-    final exerciseLog = Provider.of<ExerciseLog>(context, listen: false);
-    int todayCount = exerciseLog.todayCount;
-    int weeklyDays = exerciseLog.weeklyExerciseDays;
-
-    String message;
-
-    if (todayCount >= dailyGoal && weeklyDays >= weeklyGoal) {
-      message = "오늘과 이번 주 목표를 모두 달성했어요! 정말 멋져요! 🎉";
-    } else if (todayCount >= dailyGoal) {
-      message = "오늘 목표를 달성했어요! 잘했어요! 👍";
-    } else if (weeklyDays >= weeklyGoal) {
-      message = "이번 주 목표를 달성했어요! 멋져요! 💪";
-    } else {
-      message = "오늘도 화이팅! 조금만 더 힘내요! 😊";
+        if (userDoc.exists) {
+          setState(() {
+            userName = userDoc.get('name') ?? user.displayName ?? '사용자';
+          });
+        } else if (user.displayName != null) {
+          setState(() {
+            userName = user.displayName!;
+          });
+        }
+      }
+    } catch (e) {
+      print('사용자 정보 로드 실패: $e');
     }
-
-    setState(() {
-      goalMessage = message;
-    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xFFE4F3E1),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            SizedBox(
-              height: 80.0,  // 상단여백
-              ///여백 수정
-            ),
+      backgroundColor: const Color(0xFFE4F3E1),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
 
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('asset/logo.png',
-                  height: 200,
-                  width: 300,
-                ),
-              ],
-            ),
-
-            // 목표 달성 메시지 박스 추가
-            Container(
-              width: 300,
-              height: 60,
-              margin: EdgeInsets.only(top: 20, bottom: 20),
-              padding: EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15.0),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: Center(
-                child: Text(
-                  goalMessage.isEmpty
-                      ? '목표 데이터를 불러오는 중입니다...'
-                      : goalMessage,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-
-            // 텍스트 메시지 박스 (필요하면 삭제 가능)
-            Container(
-              width: 300,
-              height: 100,
-              padding: EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(15.0),
-                border: Border.all(color: Colors.black12),
-              ),
-              child: Text('ooo님, 현재 [심각 단계]입니다. \n 오늘도 회복을 위한 '
-                  '\n 작은 움직임을 함께 해봐요!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.black87,
-                fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-
-            SizedBox(height: 10.0),
-
-            ///사이즈 박스 수정 여백 수정
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 40.0),
-              child: Column(
+              // 로고
+              Column(
                 children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _MenuButton(
-                        icon: Icons.monitor_heart,
-                        label: '측정',
-                        color: Color(0xFFF1F3C9),
-                        onTap: (){
-                          print('측정 클릭됨!');
-                        },
-                      ),
-                      _MenuButton(
-                        icon: Icons.calendar_month,
-                        label: '일지',
-                        color: Color(0xFFD2F0DC),
-                        onTap: (){
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DailyScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                  SizedBox(
+                    width: 190,
+                    child: Image.asset(
+                      'asset/logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 190,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.green[300],
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.pets,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                    ),
                   ),
-
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _MenuButton(
-                        icon: Icons.fitness_center,
-                        label: '운동',
-                        color: Color(0xFFF1F3C9),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ExerciseScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _MenuButton(
-                        icon: Icons.access_alarms_outlined,
-                        label: '알람',
-                        color: Color(0xFFD2F0DC),
-                        onTap: (){
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => AlarmListPage(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  ///수정 사항입니다(메뉴버튼 추가, 로고 이동), 버튼 위치 조정
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _MenuButton(
-                        icon: Icons.settings,
-                        label: '설정',
-                        color: Color(0xFFF1F3C9),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SettingScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      // Image.asset('asset/sit.png',
-                      //   width: 100.0,)
-                    ],
-                  ),
-                  ///수정입니다 (수정 사항 끝)
-                  ///거북이 위치 확인!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                  // SizedBox(height: 100,),
-                  //  Row(
-                  //    mainAxisAlignment: MainAxisAlignment.end,
-                  //    children: [
-                  //      Image.asset('asset/bottom.png',
-                  //        width: 80.0,)
-                  //    ],
-
-                  ////////////////////////////////////////////////////////////////////////
+                  const SizedBox(height: 16),
                 ],
               ),
-            ),
-          ],
+
+              const SizedBox(height: 32),
+
+              // Firebase 실시간 자세 점수 표시 - 수정된 부분
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: _postureService.getTodayPostureStream(),  // 오늘 날짜로 자동 설정됨
+                  builder: (context, snapshot) {
+                    // 연결 상태 확인
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: '자세 점수를 불러오는 중...',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // 오류 처리
+                    if (snapshot.hasError) {
+                      return RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const TextSpan(
+                              text: '자세 점수 로딩 중 오류 발생',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.red,
+                                height: 1.4,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    // 안전하게 점수 추출
+                    double score = 0.0;
+                    try {
+                      if (snapshot.hasData &&
+                          snapshot.data!.exists &&
+                          snapshot.data!.data() != null) {
+                        final data = snapshot.data!.data()!;
+                        final scoreValue = data['score'];
+                        if (scoreValue != null && scoreValue is num) {
+                          score = scoreValue.toDouble();
+                        }
+                      }
+                    } catch (e) {
+                      debugPrint('점수 추출 오류: $e');
+                      score = 0.0;
+                    }
+
+                    // 점수에 따른 색상 결정
+                    Color scoreColor;
+                    String scoreMessage;
+
+                    if (score >= 80) {
+                      scoreColor = Colors.green[700]!;
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (훌륭해요!)';
+                    } else if (score >= 60) {
+                      scoreColor = Colors.orange[700]!;
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (괜찮아요!)';
+                    } else if (score > 0) {
+                      scoreColor = Colors.red[700]!;
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점 (개선이 필요해요)';
+                    } else {
+                      scoreColor = Colors.grey[600]!;
+                      scoreMessage = '아직 자세 측정 기록이 없어요';
+                    }
+
+                    return RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '안녕하세요 $userName 님!\n 오늘도 좋은 하루 보내세요 \n',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              color: Colors.black87,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextSpan(
+                            text: scoreMessage,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: scoreColor,
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // 메뉴 버튼
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildMenuButton(
+                      icon: Icons.monitor_heart,
+                      label: '측정',
+                      color: const Color(0xFFF1F3C9),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const posture.PosturePalPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMenuButton(
+                      icon: Icons.calendar_month,
+                      label: '일지',
+                      color: const Color(0xFFD2F0DC),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DailyScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMenuButton(
+                      icon: Icons.fitness_center,
+                      label: '운동',
+                      color: const Color(0xFFF1F3C9),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ExerciseScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMenuButton(
+                      icon: Icons.access_alarms_outlined,
+                      label: '알람',
+                      color: const Color(0xFFD2F0DC),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AlarmListPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildMenuButton(
+                      icon: Icons.settings,
+                      label: '설정',
+                      color: const Color(0xFFF1F3C9),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SettingScreen(), // const 제거
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-
-///  메뉴 버튼
-class _MenuButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _MenuButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.onTap,
-    super.key});
-
-  @override
-  Widget build(BuildContext context) {
+  /// 메뉴 버튼 생성 함수
+  Widget _buildMenuButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: double.infinity,
-        margin: EdgeInsets.symmetric(
-          vertical: 8.0,
-          horizontal: 20.0,
-        ),
-        padding: EdgeInsets.symmetric(vertical: 16.0),
+        width: MediaQuery.of(context).size.width * 0.6,
+        height: 60,
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(20.0),
-          border: Border.all(color: Colors.black12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,size: 30.0,),
-            SizedBox(width: 12.0,),
-            Text(label,
-              style: TextStyle(
-                  fontWeight: FontWeight.bold),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-////// 로딩 화면 //////
-class _LoadingScreen extends StatefulWidget {
-  const _LoadingScreen({super.key});
-
-  @override
-  State<_LoadingScreen> createState() => _LoadingScreenState();
-}
-
-class _LoadingScreenState extends State<_LoadingScreen>
-    with SingleTickerProviderStateMixin {
-  double _opacity = 0.0;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // 페이드 인 시작
-    Future.delayed(Duration(milliseconds: 200), () {
-      setState(() {
-        _opacity = 1.0;
-      });
-    });
-
-    // 3초 뒤 메인 화면 이동
-    Timer(Duration(seconds: 3), () {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(),
-        ),
-      );
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black87,
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFE4F3E1),
-              Color(0xFFD2F0DC),   // 아래쪾에 살짝 붉은빛 도는 색상
-            ],
-          ),
-        ),
         child: Center(
-          child: Column(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedOpacity(
-                duration: Duration(seconds: 2),
-                curve: Curves.easeInOut,
-                opacity: _opacity,
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.lightGreenAccent.withOpacity(0.5),  /// 빛나는 색
-                        blurRadius: 80.0,
-                        spreadRadius: 30.0,
-                      ),
-                    ],
-                  ),
-                  child: Image.asset(
-                    'asset/1.png',
-                    width: 200,
-                    height: 200,
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 12.0),
-              /// 하단 텍스트
-              Padding(
-                padding: EdgeInsets.only(bottom: 40.0),
-                child: Text(
-                  'Turtle neck',
-                  style: TextStyle(
-                    color: Colors.black.withOpacity(0.5), // 반투명 흰색
-                    fontSize: 20.0,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 2,
-                  ),
+              Icon(icon, size: 24, color: Colors.black87),
+              const SizedBox(width: 16),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
                 ),
               ),
             ],
           ),
         ),
       ),
-
     );
   }
 }
-// class _SplashPage extends StatefulWidget {
-//   const _SplashPage({super.key});
-//
-//   @override
-//   State<_SplashPage> createState() => _SplashPageState();
-// }
-//
-// class _SplashPageState extends State<_SplashPage> {
-//   @override
-//   void initState() {
-//     super.initState();
-//     Timer(const Duration(seconds: 3), () {
-//       Navigator.pushReplacement(
-//         context,
-//         MaterialPageRoute(builder: (_) => HomeScreen()),
-//       );
-//     });
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       backgroundColor: Color(0xFFFFDF8E8),
-//       body: Center(
-//         child: Lottie.asset(
-//           'assets/dh.json',  // GIF를 변환한 Lottie 파일
-//           width:300,
-//           height: 300,
-//           fit: BoxFit.contain,
-//         ),
-//       ),
-//     );
-//   }
-// }

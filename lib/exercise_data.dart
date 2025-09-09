@@ -37,7 +37,7 @@ final List<Exercise> exercises = [
       source: '출처: <American Academy of Orthopaedic Surgeons (AAOS) – Neck Exercises for Posture Correction>'
   ),
   Exercise(
-      title: '목 강화 운동1 (선 자세)',
+      title: '목 강화 운동1(선 자세)',
       gifPath: 'asset/ex1-6.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 발을 벽에서 20cm정도 떨어지게 하여 뒤로 벽에 편안하게 기댄 채 선 자세를 취한다.',
@@ -123,7 +123,7 @@ final List<Exercise> exercises = [
 
   /// 증상 완화운동 ///
   Exercise(
-      title: '벽 밀기 (대흉근 스트레칭)',
+      title: '벽 밀기',
       gifPath: 'asset/ex2-1.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓은 채 양팔의 팔꿈치를 어깨 높이보다 위에 오게 한다.  \n- 손바닥을 벽 모서리나 문틀에 대며, 한 쪽 발을 뒤로 빼고 앞에 있는 발의 무릎을 약간 굽혀준다.',
@@ -137,7 +137,7 @@ final List<Exercise> exercises = [
       source: '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>'
   ),
   Exercise(
-      title: '가슴 스트레칭(소흉근 스트레칭)',
+      title: '가슴 스트레칭',
       gifPath: 'asset/ex2-2.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 상체와 어깨를 이완시켜 놓고 양팔을 펴서 몸 뒤쪽으로 두고 양 손 바닥이 마주보면서 양 손 깍지 낀 채 바로 선 자세를 취한다.',
@@ -163,8 +163,8 @@ final List<Exercise> exercises = [
       source: '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>'
   ),
   Exercise(
-      title: 'W/Y/T 자세 운동',
-      gifPath: 'asset/ex2.jpg', // 실제 gif 경로 or 임시
+      title: 'WYT 자세 운동',
+      gifPath: 'asset/ex2.jpg',
       description: [
         '시작자세 : - 바닥에 엎드려 누워 이마는 수건으로 받치거나 바닥에 가볍게 둔다. \n- 복부에 살짝 힘을 줘 배꼽이 바닥에 닿지 않게 하여 허리 과신전 방지한다.',
         '동작 : - W 자세 : 팔꿈치와 손을 몸 옆으로 굽혀 90° 굽혀 W 자 모양을 만든다.(팔꿈치가 옆구리 높이)'
@@ -181,7 +181,7 @@ final List<Exercise> exercises = [
       source: '출처: Hinge Health — How to Do Wall Angels (가동성·수정사항)'
   ),
   Exercise(
-      title: 'Cat–Cow (척추 가동성 운동)',
+      title: '척추 가동성 운동',
       gifPath: 'asset/ex2-5.png', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 무릎은 엉덩이 아래, 손목은 어깨 바로 아래에 오도록 매트 위에 네 발로 엎드린다. \n- 시선은 바닥으로 두어 목의 과신전을 막는다.',
@@ -215,7 +215,7 @@ final List<Exercise> exercises = [
       source: '출처: <목 디스크 환자도 해야하는 목,어깨 강화 운동 – 신경외과 전무의⦁의학박사 고도일 지음>'
   ),
   Exercise(
-      title: '뒤통수 아래 스트레칭 (후두 하근 스트레칭)',
+      title: '뒤통수 아래 스트레칭',
       gifPath: 'asset/ex2-2.mp4', // 실제 gif 경로 or 임시
       description: [
         '시작자세 : - 폼롤러를 세로로 하여 머리가 폼롤러를 밖으로 나오게 등에 대고 양 무릎을 구부린채 바로 누운 자세를 취한다.',
