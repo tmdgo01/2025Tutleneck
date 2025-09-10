@@ -417,8 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // 메뉴 버튼
               Expanded(
                 child: SafeArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -495,7 +494,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-              ),
               const SizedBox(height: 32),
             ],
           ),

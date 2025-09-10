@@ -543,27 +543,6 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                           print('대체 음성도 실패: $altAudioError');
                         }
                       }
-
-                      // 성공 메시지 표시
-                      /*
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                const Icon(Icons.check_circle, color: Colors.white),
-                                const SizedBox(width: 8),
-                                Text('$exerciseName 1회 완료!'),
-                              ],
-                            ),
-                            backgroundColor: Colors.green,
-                            duration: const Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                       */
-
                     } catch (e) {
                       print('운동 기록 저장 실패: $e');
 

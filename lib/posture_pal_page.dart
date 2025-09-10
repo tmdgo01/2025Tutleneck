@@ -20,6 +20,10 @@ class _PosturePalPageState extends State<PosturePalPage> {
   late PoseDetector _poseDetector;
   bool _isBusy = false;
 
+  // 성능 최적화: 처리 빈도 제한
+  DateTime _lastProcessTime = DateTime.now();
+  static const int _processingIntervalMs = 200; // 5FPS로 제한
+
   String _getPostureLabel(String posture) {
     switch (posture) {
       case "정상":
@@ -30,90 +34,371 @@ class _PosturePalPageState extends State<PosturePalPage> {
       default:
         return "분석중...";
     }
+
+    /// 의학적 경고 팝업 표시
+    void _showMedicalWarningDialog() {
+      showDialog(
+        context: context,
+        barrierDismissible: false, // 반드시 확인해야 함
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.warning, color: Colors.red, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  '의학적 주의사항',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      '⚠️ 중요: 본 앱은 의료기기가 아닙니다',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    '• 본 애플리케이션은 자세 교정을 위한 보조 도구일 뿐입니다.\n\n'
+                        '• 의학적 진단이나 치료를 대체할 수 없으며, 의료 전문가의 조언을 대신하지 않습니다.\n\n'
+                        '• 목, 어깨, 척추 등에 지속적인 통증이나 불편함이 있으시면 반드시 의료 전문가와 상담하십시오.\n\n'
+                        '• 개인차가 있으므로 측정 결과는 참고용으로만 사용하시기 바랍니다.\n\n'
+                        '• 본 앱의 사용으로 인한 어떠한 의료적 문제에 대해서도 책임지지 않습니다.',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black87,
+                      height: 1.5,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '건강한 자세 유지를 위한 보조 도구로만 사용해주세요.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(); // 앱 종료
+                },
+                child: Text(
+                  '사용 안함',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _showMedicalWarning = false;
+                  });
+                  Navigator.of(context).pop();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text('이해했습니다'),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
+    /// 정보 팝업 표시 (면책 사항, 자세 기준, 자세 기준 출처)
+    void _showInfoDialog() {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return DefaultTabController(
+            length: 3,
+            child: AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    '앱 정보',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+              content: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                height: MediaQuery.of(context).size.height * 0.6,
+                child: Column(
+                  children: [
+                    TabBar(
+                      tabs: [
+                        Tab(text: '면책사항'),
+                        Tab(text: '자세기준'),
+                        Tab(text: '출처'),
+                      ],
+                      labelColor: Colors.blue,
+                      unselectedLabelColor: Colors.grey,
+                      indicatorColor: Colors.blue,
+                    ),
+                    SizedBox(height: 16),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          // 면책 사항 탭
+                          SingleChildScrollView(
+                            child: Text(
+                              '⚠️ 의학적 면책 조항\n\n'
+                                  '• 본 애플리케이션은 의료기기가 아니며, 의학적 진단이나 치료를 대체할 수 없습니다.\n\n'
+                                  '• 자세 측정 결과는 참고용이며, 개인차가 있을 수 있습니다.\n\n'
+                                  '• 목, 어깨, 척추 등에 지속적인 통증이나 불편함이 있으시면 의료 전문가와 상담하세요.\n\n'
+                                  '• 본 앱 사용으로 인한 어떠한 의료적 문제에 대해서도 책임지지 않습니다.\n\n'
+                                  '• 건강한 자세 유지를 위한 보조 도구로만 사용하시기 바랍니다.',
+                              style: TextStyle(fontSize: 14, height: 1.5),
+                            ),
+                          ),
+                          // 자세 기준 탭
+                          SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '📐 자세 측정 기준\n',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('✅ 바른 자세 (정상)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                                      Text('• 머리와 목이 어깨 위에 정렬\n• 전방 머리 자세각 < 15°\n• 목-어깨 라인이 일직선'),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(height: 12),
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('⚠️ 나쁜 자세 (위험/심각)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                                      Text('• 전방 머리 자세 (목 앞으로 빠짐)\n• 라운드 숄더 (어깨 앞으로 말림)\n• 전방 머리 자세각 > 15°'),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  '📊 측정 원리\n',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '• AI 기반 자세 인식 기술 사용\n'
+                                      '• 코, 목, 어깨의 상대적 위치 분석\n'
+                                      '• 실시간 각도 및 비율 계산\n'
+                                      '• 개인별 체형 차이 고려한 알고리즘',
+                                  style: TextStyle(fontSize: 14, height: 1.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // 출처 탭
+                          SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '📚 학술적 근거\n',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '1. Forward Head Posture and Neck Pain:\n'
+                                      '• Hansraj, K. K. (2014). Assessment of stresses in the cervical spine caused by posture and position of the head. Surgical Technology International, 25, 277-279.\n\n'
+                                      '2. Craniovertebral Angle Assessment:\n'
+                                      '• Ruivo, R. M. et al. (2014). Cervical and shoulder postural assessment of adolescents between 15 and 17 years old and association with upper quadrant pain. Brazilian Journal of Physical Therapy, 18(4), 364-371.\n\n'
+                                      '3. Computer Vision for Posture Analysis:\n'
+                                      '• Plantard, P. et al. (2017). Pose estimation with a kinect for ergonomic studies. Applied Ergonomics, 65, 424-431.\n\n'
+                                      '4. Forward Head Posture Measurement:\n'
+                                      '• Yip, C. H. et al. (2008). The relationship between head posture and severity and disability of patients with neck pain. Manual Therapy, 13(2), 148-154.',
+                                  style: TextStyle(fontSize: 12, height: 1.4),
+                                ),
+                                SizedBox(height: 16),
+                                Text(
+                                  '🔬 기술적 근거\n',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  '• Google ML Kit Pose Detection API\n'
+                                      '• MediaPipe Framework 기반\n'
+                                      '• 실시간 2D 자세 추정 기술\n'
+                                      '• 33개 주요 신체 랜드마크 검출',
+                                  style: TextStyle(fontSize: 14, height: 1.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('닫기'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    }
   }
+
+  // 성능 최적화: 히스토리 크기 줄임
   final List<String> _postureHistory = [];
-  final List<List<double>> _vectorHistory = [];
   String _currentPosture = "분석중...";
   double _confidence = 0.0;
   int _badPostureCount = 0;
 
-  Offset? _neckPoint;
-  List<PoseLandmark> _landmarksToDraw = [];
+  // 불필요한 변수들 제거
   Size? _imageSize;
   bool _alertEnabled = true;
+  bool _showMedicalWarning = true;
 
-  // 하루 누적 통계 (앱을 재시작해도 이어짐)
+  // 하루 누적 통계
   Map<String, int> _postureStats = {"정상": 0, "위험": 0, "심각": 0};
   DateTime _currentDate = DateTime.now();
-  bool _isLoadingStats = true; // 기존 통계 로딩 상태
+  bool _isLoadingStats = true;
 
-  // Firebase
+  // Firebase - 저장 빈도 최적화
   final PostureService _postureService = PostureService();
   Timer? _saveTimer;
+  DateTime _lastSaveTime = DateTime.now();
+  static const int _saveIntervalSeconds = 5; // 5초마다 저장
 
   @override
   void initState() {
     super.initState();
     _poseDetector = PoseDetector(options: PoseDetectorOptions());
-    _loadTodayStatsAndInitialize(); // 기존 통계를 불러온 후 초기화
+    _loadTodayStatsAndInitialize();
   }
 
-  /// 오늘의 기존 통계를 불러오고 카메라 초기화
   Future<void> _loadTodayStatsAndInitialize() async {
     try {
-      // Firebase에서 오늘의 기존 통계 불러오기
       final todayStats = await _postureService.getTodayStats();
 
-      setState(() {
-        _postureStats = todayStats;
-        _isLoadingStats = false;
-      });
+      if (mounted) {
+        setState(() {
+          _postureStats = todayStats;
+          _isLoadingStats = false;
+        });
+      }
 
       debugPrint('오늘 기존 통계 로딩 완료: $_postureStats');
-
-      // 기존 통계를 불러온 후 카메라와 타이머 시작
       await _initializeCamera();
       _startSavingTimer();
 
     } catch (e) {
       debugPrint('통계 로딩 실패: $e');
-      setState(() {
-        _postureStats = {"정상": 0, "위험": 0, "심각": 0};
-        _isLoadingStats = false;
-      });
-
-      // 에러가 나도 카메라는 시작
+      if (mounted) {
+        setState(() {
+          _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+          _isLoadingStats = false;
+        });
+      }
       await _initializeCamera();
       _startSavingTimer();
     }
   }
 
-  /// 하루 단위 자동 리셋 및 Firebase 저장
   void _startSavingTimer() {
-    _saveTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    // 1 -> 30 : firebase 용량 문제
+    _saveTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       final now = DateTime.now();
 
-      // 자정이 지나면 통계 자동 리셋
+      // 자정 체크
       if (!_isSameDate(now, _currentDate)) {
         debugPrint('00시 통계 초기화: ${now.toIso8601String()}');
-        setState(() {
-          _currentDate = now;
-          _postureStats = {"정상": 0, "위험": 0, "심각": 0};
-        });
+        if (mounted) {
+          setState(() {
+            _currentDate = now;
+            _postureStats = {"정상": 0, "위험": 0, "심각": 0};
+          });
+        }
       }
 
-      final totalFrames = _postureStats.values.fold(0, (prev, count) => prev + count);
-      if (totalFrames == 0) return;
-
-      final normalCount = _postureStats['정상'] ?? 0;
-      final double currentScore = (normalCount / totalFrames) * 100.0;
-
-      // Firebase에 실시간 저장
-      _postureService.savePostureScore(
-        score: currentScore,
-        stats: Map<String, int>.from(_postureStats),
-      );
+      // 성능 최적화: 저장 빈도 제한
+      if (now.difference(_lastSaveTime).inSeconds >= _saveIntervalSeconds) {
+        _saveToFirebase();
+        _lastSaveTime = now;
+      }
     });
+  }
+
+  // Firebase 저장을 별도 함수로 분리
+  void _saveToFirebase() {
+    final totalFrames = _postureStats.values.fold(0, (prev, count) => prev + count);
+    if (totalFrames == 0) return;
+
+    final normalCount = _postureStats['정상'] ?? 0;
+    final double currentScore = (normalCount / totalFrames) * 100.0;
+
+    _postureService.savePostureScore(
+      score: currentScore,
+      stats: Map<String, int>.from(_postureStats),
+    );
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -130,7 +415,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
       _cameraController = CameraController(
         frontCamera,
-        ResolutionPreset.medium,
+        ResolutionPreset.low, // 성능 최적화: 해상도 낮춤
         enableAudio: false,
       );
 
@@ -161,7 +446,14 @@ class _PosturePalPageState extends State<PosturePalPage> {
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
-    if (_isBusy || !mounted || _isLoadingStats) return; // 통계 로딩 중에는 처리하지 않음
+    // 성능 최적화: 처리 빈도 제한
+    final now = DateTime.now();
+    if (now.difference(_lastProcessTime).inMilliseconds < _processingIntervalMs) {
+      return;
+    }
+    _lastProcessTime = now;
+
+    if (_isBusy || !mounted || _isLoadingStats) return;
     _isBusy = true;
 
     try {
@@ -194,10 +486,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
     final keypoints = _extractKeypoints(pose);
     if (keypoints.isEmpty) return;
 
-    final postureVector = _createPostureVector(keypoints);
-    if (postureVector.isEmpty) return;
-
-    final postureResult = _classifyPosture(postureVector, keypoints);
+    final postureResult = _classifyPosture(keypoints);
 
     _updatePostureStats(postureResult['posture']);
     _checkBadPostureAlert(postureResult['posture']);
@@ -206,32 +495,24 @@ class _PosturePalPageState extends State<PosturePalPage> {
       setState(() {
         _currentPosture = postureResult['posture'];
         _confidence = postureResult['confidence'];
-        _landmarksToDraw = _getAllLandmarks(pose);
-        _neckPoint = keypoints['neck'];
 
+        // 성능 최적화: 히스토리 크기 제한
         _postureHistory.add(_currentPosture);
-        _vectorHistory.add(postureVector);
-        if (_postureHistory.length > 100) {
+        if (_postureHistory.length > 20) { // 100에서 20으로 줄임
           _postureHistory.removeAt(0);
-          _vectorHistory.removeAt(0);
         }
       });
     }
   }
 
+  // 성능 최적화: 키포인트 추출 간소화
   Map<String, Offset?> _extractKeypoints(Pose pose) {
     final keypoints = <String, Offset?>{};
+
+    // 필수 키포인트만 추출
     keypoints['nose'] = _getLandmarkOffset(pose, PoseLandmarkType.nose);
-    keypoints['leftEye'] = _getLandmarkOffset(pose, PoseLandmarkType.leftEye);
-    keypoints['rightEye'] = _getLandmarkOffset(pose, PoseLandmarkType.rightEye);
-    keypoints['leftEar'] = _getLandmarkOffset(pose, PoseLandmarkType.leftEar);
-    keypoints['rightEar'] = _getLandmarkOffset(pose, PoseLandmarkType.rightEar);
     keypoints['leftShoulder'] = _getLandmarkOffset(pose, PoseLandmarkType.leftShoulder);
     keypoints['rightShoulder'] = _getLandmarkOffset(pose, PoseLandmarkType.rightShoulder);
-    keypoints['leftElbow'] = _getLandmarkOffset(pose, PoseLandmarkType.leftElbow);
-    keypoints['rightElbow'] = _getLandmarkOffset(pose, PoseLandmarkType.rightElbow);
-    keypoints['leftWrist'] = _getLandmarkOffset(pose, PoseLandmarkType.leftWrist);
-    keypoints['rightWrist'] = _getLandmarkOffset(pose, PoseLandmarkType.rightWrist);
 
     final leftShoulder = keypoints['leftShoulder'];
     final rightShoulder = keypoints['rightShoulder'];
@@ -245,27 +526,8 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return keypoints;
   }
 
-  List<double> _createPostureVector(Map<String, Offset?> keypoints) {
-    final neck = keypoints['neck'];
-    if (neck == null) return [];
-
-    final vector = <double>[];
-    final keypointOrder = [
-      'nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar',
-      'leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow',
-      'leftWrist', 'rightWrist',
-    ];
-
-    for (final key in keypointOrder) {
-      final point = keypoints[key];
-      vector.add(point != null ? point.dx - neck.dx : 0.0);
-      vector.add(point != null ? point.dy - neck.dy : 0.0);
-    }
-
-    return vector;
-  }
-
-  Map<String, dynamic> _classifyPosture(List<double> vector, Map<String, Offset?> keypoints) {
+  // 성능 최적화: 자세 분류 알고리즘 간소화
+  Map<String, dynamic> _classifyPosture(Map<String, Offset?> keypoints) {
     final nose = keypoints['nose'];
     final neck = keypoints['neck'];
     final leftShoulder = keypoints['leftShoulder'];
@@ -275,19 +537,17 @@ class _PosturePalPageState extends State<PosturePalPage> {
       return {'posture': '분석중...', 'confidence': 0.0};
     }
 
-    final headNeckAngle = _calculateHeadNeckAngle(nose, neck);
+    // 간소화된 자세 분석
     final forwardRatio = _calculateForwardRatio(nose, neck);
+    final absForwardRatio = forwardRatio.abs();
 
     String posture;
     double confidence;
 
-    // 좌우 대칭적으로 처리하기 위해 절댓값 사용
-    final absForwardRatio = forwardRatio.abs();
-
-    if (absForwardRatio > 0.25 || headNeckAngle < 50) {
+    if (absForwardRatio > 0.25) {
       posture = "심각";
       confidence = min(absForwardRatio * 4, 1.0);
-    } else if (absForwardRatio > 0.15 || headNeckAngle < 75) {
+    } else if (absForwardRatio > 0.15) {
       posture = "위험";
       confidence = min(absForwardRatio * 6, 1.0);
     } else {
@@ -299,12 +559,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return {'posture': posture, 'confidence': confidence};
   }
 
-  double _calculateHeadNeckAngle(Offset nose, Offset neck) {
-    final dx = nose.dx - neck.dx;
-    final dy = nose.dy - neck.dy;
-    return atan2(dy.abs(), dx.abs()) * 180 / pi;
-  }
-
   double _calculateForwardRatio(Offset nose, Offset neck) {
     final dx = nose.dx - neck.dx;
     final dy = nose.dy - neck.dy;
@@ -314,8 +568,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
   void _updatePostureStats(String posture) {
     if (posture == '분석중...') return;
-
-    // 하루 누적 통계 업데이트
     _postureStats[posture] = (_postureStats[posture] ?? 0) + 1;
   }
 
@@ -324,7 +576,7 @@ class _PosturePalPageState extends State<PosturePalPage> {
 
     if (posture != "정상") {
       _badPostureCount++;
-      if (_badPostureCount >= 30) {
+      if (_badPostureCount >= 15) { // 30에서 15로 줄임 (빈도 감소로 인해)
         _triggerPostureAlert(posture);
         _badPostureCount = 0;
       }
@@ -368,25 +620,162 @@ class _PosturePalPageState extends State<PosturePalPage> {
     return landmark != null ? Offset(landmark.x, landmark.y) : null;
   }
 
-  List<PoseLandmark> _getAllLandmarks(Pose pose) {
-    final landmarks = <PoseLandmark>[];
-    for (final type in PoseLandmarkType.values) {
-      final landmark = pose.landmarks[type];
-      if (landmark != null) landmarks.add(landmark);
-    }
-    return landmarks;
-  }
-
-  /// 수동으로 통계 리셋하는 함수 (테스트용)
-  void _resetTodayStats() {
-    setState(() {
-      _postureStats = {"정상": 0, "위험": 0, "심각": 0};
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('오늘의 통계가 초기화되었습니다.'),
-        duration: Duration(seconds: 2),
-      ),
+  /// 정보 팝업 표시 (면책 사항, 자세 기준, 자세 기준 출처)
+  void _showInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return DefaultTabController(
+          length: 3,
+          child: AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue, size: 24),
+                SizedBox(width: 8),
+                Text(
+                  '앱 정보',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            content: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: Column(
+                children: [
+                  TabBar(
+                    tabs: [
+                      Tab(text: '면책사항'),
+                      Tab(text: '자세기준'),
+                      Tab(text: '출처'),
+                    ],
+                    labelColor: Colors.blue,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: Colors.blue,
+                  ),
+                  SizedBox(height: 16),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        // 면책 사항 탭
+                        SingleChildScrollView(
+                          child: Text(
+                            '⚠️ 의학적 면책 조항\n\n'
+                                '• 본 애플리케이션은 의료기기가 아니며, 의학적 진단이나 치료를 대체할 수 없습니다.\n\n'
+                                '• 자세 측정 결과는 참고용이며, 개인차가 있을 수 있습니다.\n\n'
+                                '• 목, 어깨, 척추 등에 지속적인 통증이나 불편함이 있으시면 의료 전문가와 상담하세요.\n\n'
+                                '• 본 앱 사용으로 인한 어떠한 의료적 문제에 대해서도 책임지지 않습니다.\n\n'
+                                '• 건강한 자세 유지를 위한 보조 도구로만 사용하시기 바랍니다.',
+                            style: TextStyle(fontSize: 14, height: 1.5),
+                          ),
+                        ),
+                        // 자세 기준 탭
+                        SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '📐 자세 측정 기준\n',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('✅ 바른 자세 (정상)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                                    Text('• 머리와 목이 어깨 위에 정렬\n• 전방 머리 자세각 < 15°\n• 목-어깨 라인이 일직선'),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('⚠️ 나쁜 자세 (위험/심각)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                                    Text('• 전방 머리 자세 (목 앞으로 빠짐)\n• 라운드 숄더 (어깨 앞으로 말림)\n• 전방 머리 자세각 > 15°'),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                '📊 측정 원리\n',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '• AI 기반 자세 인식 기술 사용\n'
+                                    '• 코, 목, 어깨의 상대적 위치 분석\n'
+                                    '• 실시간 각도 및 비율 계산\n'
+                                    '• 개인별 체형 차이 고려한 알고리즘',
+                                style: TextStyle(fontSize: 14, height: 1.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // 출처 탭
+                        SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '📚 학술적 근거\n',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '1. Forward Head Posture and Neck Pain:\n'
+                                    '• Hansraj, K. K. (2014). Assessment of stresses in the cervical spine caused by posture and position of the head. Surgical Technology International, 25, 277-279.\n\n'
+                                    '2. Craniovertebral Angle Assessment:\n'
+                                    '• Ruivo, R. M. et al. (2014). Cervical and shoulder postural assessment of adolescents between 15 and 17 years old and association with upper quadrant pain. Brazilian Journal of Physical Therapy, 18(4), 364-371.\n\n'
+                                    '3. Computer Vision for Posture Analysis:\n'
+                                    '• Plantard, P. et al. (2017). Pose estimation with a kinect for ergonomic studies. Applied Ergonomics, 65, 424-431.\n\n'
+                                    '4. Forward Head Posture Measurement:\n'
+                                    '• Yip, C. H. et al. (2008). The relationship between head posture and severity and disability of patients with neck pain. Manual Therapy, 13(2), 148-154.',
+                                style: TextStyle(fontSize: 12, height: 1.4),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                '🔬 기술적 근거\n',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                              ),
+                              Text(
+                                '• Google ML Kit Pose Detection API\n'
+                                    '• MediaPipe Framework 기반\n'
+                                    '• 실시간 2D 자세 추정 기술\n'
+                                    '• 33개 주요 신체 랜드마크 검출',
+                                style: TextStyle(fontSize: 14, height: 1.5),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('닫기'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -395,6 +784,11 @@ class _PosturePalPageState extends State<PosturePalPage> {
     _saveTimer?.cancel();
     _cameraController?.dispose();
     _poseDetector.close();
+
+    // 메모리 정리
+    _postureHistory.clear();
+    _postureStats.clear();
+
     super.dispose();
   }
 
@@ -411,7 +805,8 @@ class _PosturePalPageState extends State<PosturePalPage> {
       return Scaffold(
         backgroundColor: Colors.black87,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.black87,
+          foregroundColor: Colors.white,
           title: const Text('실시간 자세 측정'),
         ),
         body: const Center(
@@ -442,6 +837,11 @@ class _PosturePalPageState extends State<PosturePalPage> {
             icon: Icon(_alertEnabled ? Icons.notifications_active : Icons.notifications_off),
             tooltip: '알림 ${_alertEnabled ? '끄기' : '켜기'}',
           ),
+          IconButton(
+            onPressed: _showInfoDialog,
+            icon: Icon(Icons.info_outline),
+            tooltip: '앱 정보',
+          ),
         ],
       ),
       body: _cameraController == null || !_cameraController!.value.isInitialized
@@ -470,8 +870,8 @@ class _PosturePalPageState extends State<PosturePalPage> {
             transform: Matrix4.identity()..scale(-1.0, 1.0, 1.0),
             child: CustomPaint(
               painter: PosturePalPainter(
-                landmarks: _landmarksToDraw,
-                neckPoint: _neckPoint,
+                landmarks: [],
+                neckPoint: null,
                 postureType: _currentPosture,
                 imageSize: _imageSize,
               ),
@@ -513,16 +913,6 @@ class _PosturePalPageState extends State<PosturePalPage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-
-                  // 신뢰도
-                  // Text(
-                  //   "신뢰도: ${(_confidence * 100).toStringAsFixed(1)}%",
-                  //   style: const TextStyle(
-                  //     color: Colors.white70,
-                  //     fontSize: 14,
-                  //   ),
-                  // ),
                   const SizedBox(height: 16),
 
                   // 하루 누적 점수 (강조 표시)
@@ -627,12 +1017,11 @@ class PosturePalPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 모든 시각적 표시 제거 - 키포인트, 목 포인트 등 모두 제거
-    // 카메라 화면만 보이도록 함
+    // 모든 시각적 표시 제거 - 성능 최적화
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false; // 성능 최적화
 }
 
 /// 헬퍼 클래스

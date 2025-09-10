@@ -73,7 +73,7 @@ flutter_launcher_icons:
   android: true # 안드로이드 플랫폼에 런처 아이콘 적용 여부
   ios: true # iOS 플랫폼에 런처 아이콘 적용 여부
   image_path: "asset/stand.png" # 런처 아이콘으로 사용할 이미지 경로
-  adaptive_icon_background: "#000000" # 안드로이드 적응형 아이콘의 배경색 (검정색)
+  adaptive_icon_background: "0xFFffffff" # 안드로이드 적응형 아이콘의 배경색 (검정색)
   adaptive_icon_foreground: "asset/stand.png" # 안드로이드 적응형 아이콘의 전경 이미지 경로
   min_sdk_android: 21 # 안드로이드 최소 SDK 버전 (API 21(Android 5.0) 이상)
 
