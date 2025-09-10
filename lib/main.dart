@@ -377,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이네요. 조금만 신경 써주세요.';
                     } else if (score > 0) {
                       scoreColor = Colors.red[700]!;
-                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이에요... 자세를 고쳐야 해요';
+                      scoreMessage = '자세 점수 ${score.toStringAsFixed(1)}점이에요. /n더 건강한 자세를 위해 전문가와 상담해보는 건 어떨까요?.';
                     } else {
                       scoreColor = Colors.grey[600]!;
                       scoreMessage = '아직 자세 측정 기록이 없어요';
