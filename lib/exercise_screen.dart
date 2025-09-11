@@ -239,6 +239,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
           _isPlayingVoice = false;
           _isExerciseCompleted = true;
         });
+
+        // Firebase에 개별 운동 완료 기록 저장
+        _saveIndividualExerciseToFirebase();
       }
     });
 
@@ -343,6 +346,9 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             _isExerciseCompleted = true;
           });
 
+          // Firebase에 개별 운동 완료 기록 저장
+          _saveIndividualExerciseToFirebase();
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -355,15 +361,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
           return;
         }
 
-        // 경로 정리
+        // 경로 정리: assets/vo1-1.mp3 -> vo1-1.mp3
         String cleanPath = voiceGuidePath;
+        if (cleanPath.startsWith('assets/')) {
+          cleanPath = cleanPath.substring(7); // 'assets/' 제거
+        }
 
-        // assets/ 중복 제거
-        cleanPath = cleanPath.replaceAll(RegExp(r'^assets/assets/'), 'assets/');
-        cleanPath = cleanPath.replaceAll(RegExp(r'^assets/'), '');
-        cleanPath = cleanPath.replaceAll(RegExp(r'^/'), '');
-
-        print('Cleaned audio path: "$cleanPath"');
+        print('Cleaned audio path for AssetSource: "$cleanPath"');
 
         try {
           await _audioPlayer.play(AssetSource(cleanPath));
@@ -382,10 +386,13 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
             _hasStartedExercise = true;
           });
 
+          // Firebase에 개별 운동 완료 기록 저장
+          _saveIndividualExerciseToFirebase();
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${_currentExercise.title}: 음성 파일을 찾을 수 없어 완료 처리됩니다.'),
+                content: Text('${_currentExercise.title}: 음성 파일을 재생할 수 없어 완료 처리됩니다.'),
                 duration: const Duration(seconds: 3),
                 backgroundColor: Colors.orange,
               ),
@@ -416,6 +423,28 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
           _isExerciseCompleted = true;
           _hasStartedExercise = true;
         });
+      }
+    }
+  }
+
+  // Firebase에 개별 운동 완료 기록 저장
+  Future<void> _saveIndividualExerciseToFirebase() async {
+    try {
+      await FirebaseExerciseService.saveIndividualExercise(
+        exerciseName: _currentExercise.title,
+        date: DateTime.now(),
+      );
+      print('Firebase에 개별 운동 완료 기록 저장 성공: ${_currentExercise.title}');
+    } catch (e) {
+      print('Firebase에 개별 운동 완료 기록 저장 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('운동 기록 저장에 실패했습니다. 네트워크를 확인해주세요.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -766,7 +795,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                               borderRadius: BorderRadius.circular(16.0),
                             ),
                             title: Text(
-                              "${widget.tabName} 운동 완료!",
+                              "${widget.tabName} 운동 세션 완료!",
                               style: const TextStyle(
                                 color: Colors.black87,
                                 fontWeight: FontWeight.bold,
@@ -774,7 +803,7 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
                               ),
                             ),
                             content: const Text(
-                              "모든 운동을 마쳤습니다!\n각 운동을 더 많이 하면 탭 완료 횟수가 증가합니다.\n\n어디로 이동하시겠어요?",
+                              "이번 운동 세션을 마쳤습니다!\n완료한 개별 운동들이 일지에 기록되었습니다.\n\n어디로 이동하시겠어요?",
                               style: TextStyle(
                                 color: Colors.black87,
                                 fontSize: 16,
