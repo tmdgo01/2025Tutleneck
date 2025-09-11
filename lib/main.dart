@@ -10,7 +10,7 @@ import 'package:finalproject/alarm_list_page.dart';
 import 'package:finalproject/posture_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'daily_screen.dart';
-import 'package:finalproject/scr/splash.dart';
+// import 'package:finalproject/scr/splash.dart'; // 스플래시 관련 import 제거
 import 'package:finalproject/posture_pal_page.dart' as posture;
 import 'dart:async';
 import 'background_alarm_service.dart';
@@ -37,20 +37,11 @@ void main() async {
     print('⚠️ 알람 권한 거부됨');
   }
 
-  runApp(const EntryPoint());
+  // 스플래시 화면 없이 바로 MyApp 실행
+  runApp(const MyApp());
 }
 
-class EntryPoint extends StatelessWidget {
-  const EntryPoint({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
-    );
-  }
-}
+// EntryPoint 클래스 제거 - 더 이상 필요 없음
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
@@ -100,7 +91,7 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: const AuthWrapper(),
+      home: const AuthWrapper(), // 바로 AuthWrapper로 이동
       routes: {
         '/home': (context) => const HomeScreen(),
         '/auth': (context) => const AuthScreen(),
