@@ -31,6 +31,8 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = false  // R8 완전 비활성화
+            isShrinkResources = false  // 리소스 축소 비활성화
             signingConfig = signingConfigs.getByName("debug")
         }
     }

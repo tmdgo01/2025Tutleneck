@@ -58,8 +58,6 @@ class ExerciseScreen extends StatelessWidget {
       entry.value.map((title) => findExerciseByTitle(title)!).toList(),
   };
 
-  // ExerciseScreen의 build 메서드 전체를 이것으로 교체하세요
-
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -69,7 +67,6 @@ class ExerciseScreen extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: const Color(0xFFE4F3E1),
           elevation: 0,
-          // 탭 제목이 많으면 자동 스크롤 가능하도록
           bottom: TabBar(
             isScrollable: true,
             indicatorColor: Colors.red,
@@ -92,11 +89,10 @@ class ExerciseScreen extends StatelessWidget {
             Column(
               children: [
                 const SizedBox(height: 12.0),
-                // 탭 내용
                 Expanded(
                   child: TabBarView(
                     children: exerciseData.entries.map((entry) {
-                      final tabName = entry.key; // 탭 이름 가져오기
+                      final tabName = entry.key;
                       final tabExercises = entry.value;
                       return ListView.builder(
                         itemCount: tabExercises.length,
@@ -109,9 +105,9 @@ class ExerciseScreen extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (context) =>
                                       _ExerciseDetailScreen(
-                                        exercises: tabExercises, // 해당 탭 전체 리스트
-                                        initialIndex: index, // 선택한 인덱스
-                                        tabName: tabName, // 탭 이름 전달
+                                        exercises: tabExercises,
+                                        initialIndex: index,
+                                        tabName: tabName,
                                       ),
                                 ),
                               );
@@ -176,12 +172,12 @@ class ExerciseScreen extends StatelessWidget {
 class _ExerciseDetailScreen extends StatefulWidget {
   final List<Exercise> exercises;
   final int initialIndex;
-  final String tabName; // 추가: 탭 이름
+  final String tabName;
 
   const _ExerciseDetailScreen({
     required this.exercises,
     required this.initialIndex,
-    required this.tabName, // 추가
+    required this.tabName,
     super.key,
   });
 
@@ -197,10 +193,12 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   late int _currentIndex;
   late Exercise _currentExercise;
 
-  // 클래스 최상단에 상태 변수 추가
-  bool _isPlayingVoice = false;
+  // 상태 변수들
+  bool _isPlayingVoice = false;        // 음성 재생 중인지
+  bool _isExerciseCompleted = false;   // 운동 완료 여부
+  bool _hasStartedExercise = false;    // 운동을 시작했는지
 
-  /// 시간표시 함수 ////
+  /// 시간표시 함수
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -214,91 +212,317 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
     _currentIndex = widget.initialIndex;
     _currentExercise = widget.exercises[_currentIndex];
 
-    // 오디오 포커스 설정: 영상 방해하지 않게
+    print('Current exercise: ${_currentExercise.title}');
+    print('Voice guide path: ${_currentExercise.voiceGuide}');
+
+    // 오디오 설정
     _audioPlayer.setAudioContext(
       AudioContext(
         android: const AudioContextAndroid(
           isSpeakerphoneOn: true,
           stayAwake: false,
           contentType: AndroidContentType.music,
-          audioFocus: AndroidAudioFocus.none, // 포커스 안 가져오게 설정
+          audioFocus: AndroidAudioFocus.none,
         ),
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
-          options: {AVAudioSessionOptions.mixWithOthers}, // ios도 동시에 재생 허용
+          options: {AVAudioSessionOptions.mixWithOthers},
         ),
       ),
     );
 
-    _initializeController();
-  }
-
-  void _initializeController() {
-    final path = _currentExercise.gifPath;
-    _controller?.dispose(); // 기존 컨트롤러 정리
-
-    if (path.endsWith('.mp4')) {
-      _controller = VideoPlayerController.asset(path)
-        ..initialize().then((_) {
-          if (!mounted) return;
-          setState(() {});
-          _controller!.play();
-          _isPlaying = true;
-        }).catchError((error) {
-          // 필요시 로깅
+    // 음성 완료 리스너
+    _audioPlayer.onPlayerComplete.listen((event) {
+      if (mounted) {
+        print('Audio playback completed');
+        setState(() {
+          _isPlayingVoice = false;
+          _isExerciseCompleted = true;
         });
 
-      _controller!.addListener(() {
-        if (!mounted) return;
+        // Firebase에 개별 운동 완료 기록 저장
+        _saveIndividualExerciseToFirebase();
+      }
+    });
 
-        final isEnded = _controller!.value.position >= _controller!.value.duration;
+    // 오디오 상태 변화 리스너
+    _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+      print('Audio player state changed: $state');
+      if (mounted && state == PlayerState.stopped) {
+        setState(() {
+          _isPlayingVoice = false;
+        });
+      }
+    });
 
-        if (isEnded && _isPlaying) {
-          setState(() {
-            _isPlaying = false; // 영상이 끝났을 때 버튼 상태 변경
-          });
+    // 비디오 컨트롤러 초기화
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _initializeController();
+      } catch (e) {
+        print('Initial video controller setup error: $e');
+      }
+    });
+  }
+
+  Future<void> _initializeController() async {
+    final path = _currentExercise.gifPath;
+
+    // 기존 컨트롤러 정리
+    if (_controller != null) {
+      _controller!.removeListener(_videoListener);
+      await _controller!.pause();
+      await _controller!.dispose();
+      _controller = null;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (path.endsWith('.mp4')) {
+      try {
+        _controller = VideoPlayerController.asset(
+          path,
+          videoPlayerOptions: VideoPlayerOptions(
+            mixWithOthers: true,
+            allowBackgroundPlayback: false,
+          ),
+        );
+
+        await _controller!.initialize();
+
+        if (!mounted) {
+          await _controller!.dispose();
+          return;
         }
 
-        // 이건 재생 시간, 진행바 등 계속 갱신용
+        _controller!.addListener(_videoListener);
+        await _controller!.setLooping(true);
         setState(() {});
-      });
+
+        await _controller!.play();
+        _isPlaying = true;
+
+      } catch (error) {
+        print('Video initialization error: $error');
+        _controller = null;
+        if (mounted) {
+          setState(() {});
+        }
+      }
     } else {
       _controller = null;
-      setState(() {}); // 이미지 표시 위해 갱신
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
-  void _goToNextExercise() {
-    if (_currentIndex < widget.exercises.length - 1) {
-      setState(() {
-        _currentIndex++;
-        _currentExercise = widget.exercises[_currentIndex];
-      });
-      _initializeController();
+  void _videoListener() {
+    if (!mounted || _controller == null || !_controller!.value.isInitialized) return;
+
+    final wasPlaying = _controller!.value.isPlaying;
+    if (wasPlaying != _isPlaying) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = wasPlaying;
+        });
+      }
     }
   }
 
-  // 🆕 NEW: 오늘의 운동 완료 액션 (간단 팝업)
-  void _onCompleteTodayWorkout() {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("오늘의 운동 완료 🎉"),
-        content: const Text("모든 운동을 끝냈습니다! 수고하셨습니다."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), // 팝업 닫기
-            child: const Text("확인"),
+  // 운동하기 버튼 로직
+  Future<void> _handleExerciseButton() async {
+    try {
+      if (!_hasStartedExercise) {
+        // 처음 시작하는 경우
+        String voiceGuidePath = _currentExercise.voiceGuide?.trim() ?? '';
+
+        print('Original voiceGuide: "$voiceGuidePath"');
+
+        if (voiceGuidePath.isEmpty || voiceGuidePath == '') {
+          // 음성 가이드가 없는 경우 즉시 완료 처리
+          print('No voice guide available for: ${_currentExercise.title}');
+          setState(() {
+            _hasStartedExercise = true;
+            _isExerciseCompleted = true;
+          });
+
+          // Firebase에 개별 운동 완료 기록 저장
+          _saveIndividualExerciseToFirebase();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${_currentExercise.title}: 음성 가이드가 없어 즉시 완료 처리됩니다.'),
+                duration: const Duration(seconds: 2),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          }
+          return;
+        }
+
+        // 경로 정리: assets/vo1-1.mp3 -> vo1-1.mp3
+        String cleanPath = voiceGuidePath;
+        if (cleanPath.startsWith('assets/')) {
+          cleanPath = cleanPath.substring(7); // 'assets/' 제거
+        }
+
+        print('Cleaned audio path for AssetSource: "$cleanPath"');
+
+        try {
+          await _audioPlayer.play(AssetSource(cleanPath));
+          setState(() {
+            _isPlayingVoice = true;
+            _hasStartedExercise = true;
+          });
+          print('Audio playback started successfully with: $cleanPath');
+        } catch (audioError) {
+          print('Failed to play audio: $audioError');
+
+          // 즉시 완료 처리
+          setState(() {
+            _isPlayingVoice = false;
+            _isExerciseCompleted = true;
+            _hasStartedExercise = true;
+          });
+
+          // Firebase에 개별 운동 완료 기록 저장
+          _saveIndividualExerciseToFirebase();
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${_currentExercise.title}: 음성 파일을 재생할 수 없어 완료 처리됩니다.'),
+                duration: const Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      } else {
+        // 이미 시작한 경우 (일시정지/재개)
+        if (_isPlayingVoice) {
+          await _audioPlayer.pause();
+          setState(() {
+            _isPlayingVoice = false;
+          });
+          print('Audio paused');
+        } else {
+          await _audioPlayer.resume();
+          setState(() {
+            _isPlayingVoice = true;
+          });
+          print('Audio resumed');
+        }
+      }
+    } catch (error) {
+      print('Exercise button error: $error');
+      if (mounted) {
+        setState(() {
+          _isPlayingVoice = false;
+          _isExerciseCompleted = true;
+          _hasStartedExercise = true;
+        });
+      }
+    }
+  }
+
+  // Firebase에 개별 운동 완료 기록 저장
+  Future<void> _saveIndividualExerciseToFirebase() async {
+    try {
+      await FirebaseExerciseService.saveIndividualExercise(
+        exerciseName: _currentExercise.title,
+        date: DateTime.now(),
+      );
+      print('Firebase에 개별 운동 완료 기록 저장 성공: ${_currentExercise.title}');
+    } catch (e) {
+      print('Firebase에 개별 운동 완료 기록 저장 실패: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('운동 기록 저장에 실패했습니다. 네트워크를 확인해주세요.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.red,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
+  }
+
+  Future<void> _goToNextExercise() async {
+    if (_currentIndex < widget.exercises.length - 1) {
+      try {
+        await _audioPlayer.stop();
+
+        setState(() {
+          _currentIndex++;
+          _currentExercise = widget.exercises[_currentIndex];
+          _isPlayingVoice = false;
+          _isExerciseCompleted = false;
+          _hasStartedExercise = false;
+        });
+
+        print('Moving to next exercise: ${_currentExercise.title}');
+        print('Next exercise voice guide: ${_currentExercise.voiceGuide}');
+
+        await Future.delayed(const Duration(milliseconds: 100));
+        await _initializeController();
+      } catch (e) {
+        print('Error going to next exercise: $e');
+      }
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_hasStartedExercise && !_isExerciseCompleted) {
+      final result = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('운동 미완료'),
+          content: const Text('아직 운동을 완료하지 않으셨습니다.\n정말 나가시겠습니까?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('계속하기'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await _audioPlayer.stop();
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('나가기'),
+            ),
+          ],
+        ),
+      );
+      return result ?? false;
+    }
+    await _audioPlayer.stop();
+    return true;
   }
 
   @override
-  void dispose() {
-    _controller?.dispose();
-    _audioPlayer.stop(); // 뒤로가기시 음성 중지
+  Future<void> dispose() async {
+    try {
+      await _audioPlayer.stop();
+      await _audioPlayer.dispose();
+    } catch (e) {
+      print('Audio dispose error: $e');
+    }
+
+    try {
+      if (_controller != null) {
+        _controller!.removeListener(_videoListener);
+        if (_controller!.value.isPlaying) {
+          await _controller!.pause();
+        }
+        await _controller!.dispose();
+        _controller = null;
+      }
+    } catch (e) {
+      print('Video dispose error: $e');
+    }
+
     super.dispose();
   }
 
@@ -306,399 +530,342 @@ class _ExerciseDetailScreenState extends State<_ExerciseDetailScreen> {
   Widget build(BuildContext context) {
     final isLast = _currentIndex == widget.exercises.length - 1;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFE4F3E1),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFE4F3E1),
-        elevation: 0,
-        leading: IconButton(
-          onPressed: () {
-            Navigator.pop(context);
-          },
-          icon: const Icon(
-            Icons.arrow_back,
-            color: Colors.black,
-          ),
-        ),
-        title: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Text(
-            _currentExercise.title,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 20.0,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        centerTitle: true,
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
 
-        // 팝업 형태로 도움말 띄우기
-        actions: [
-          IconButton(
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => _HelpDialog(),
-              );
+        final shouldPop = await _onWillPop();
+        if (shouldPop && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFE4F3E1),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFE4F3E1),
+          elevation: 0,
+          leading: IconButton(
+            onPressed: () async {
+              final shouldPop = await _onWillPop();
+              if (shouldPop && context.mounted) {
+                await _audioPlayer.stop();
+                Navigator.pop(context);
+              }
             },
             icon: const Icon(
-              Icons.help_outline,
+              Icons.arrow_back,
               color: Colors.black,
             ),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 24.0,
-          vertical: 16.0,
+          title: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Text(
+              _currentExercise.title,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 20.0,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => _HelpDialog(),
+                );
+              },
+              icon: const Icon(
+                Icons.help_outline,
+                color: Colors.black,
+              ),
+            ),
+          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            ////// 운동 동영상 위젯 + 버튼 //////////
-            Center(
-              child: _currentExercise.gifPath.endsWith('.mp4')
-                  ? (_controller != null && _controller!.value.isInitialized
-                  ? Stack(
-                alignment: Alignment.bottomCenter,
-                children: [
-                  AspectRatio(
-                    aspectRatio: _controller!.value.aspectRatio,
-                    child: VideoPlayer(_controller!),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 24.0,
+            vertical: 16.0,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 운동 동영상/이미지
+              Center(
+                child: _currentExercise.gifPath.endsWith('.mp4')
+                    ? (_controller != null && _controller!.value.isInitialized
+                    ? Container(
+                  constraints: const BoxConstraints(
+                    maxHeight: 400,
+                    maxWidth: double.infinity,
                   ),
-                  // 컨트롤 바 //
-                  Container(
-                    color: Colors.transparent,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6.0,
-                      vertical: 6.0,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              if (_controller!.value.isPlaying) {
-                                _controller!.pause();
-                                _isPlaying = false;
-                              } else {
-                                _controller!.play();
-                                _isPlaying = true;
-                              }
-                            });
-                          },
-                          icon: Icon(
-                            _isPlaying
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_fill,
-                            color: Colors.white,
-                            size: 30.0,
-                          ),
+                  child: Stack(
+                    alignment: Alignment.bottomCenter,
+                    children: [
+                      AspectRatio(
+                        aspectRatio: _controller!.value.aspectRatio,
+                        child: VideoPlayer(_controller!),
+                      ),
+                      Container(
+                        color: Colors.black.withOpacity(0.3),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6.0,
+                          vertical: 6.0,
                         ),
-                        // 진행 바
-                        Expanded(
-                          child: VideoProgressIndicator(
-                            _controller!,
-                            allowScrubbing: true,
-                            colors: const VideoProgressColors(
-                              playedColor: Colors.red,
-                              bufferedColor: Colors.grey,
-                              backgroundColor: Colors.grey,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            IconButton(
+                              onPressed: () async {
+                                try {
+                                  if (_controller!.value.isPlaying) {
+                                    await _controller!.pause();
+                                    setState(() {
+                                      _isPlaying = false;
+                                    });
+                                  } else {
+                                    await _controller!.play();
+                                    setState(() {
+                                      _isPlaying = true;
+                                    });
+                                  }
+                                } catch (e) {
+                                  print('Video control error: $e');
+                                }
+                              },
+                              icon: Icon(
+                                _isPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_fill,
+                                color: Colors.white,
+                                size: 30.0,
+                              ),
                             ),
+                            Expanded(
+                              child: VideoProgressIndicator(
+                                _controller!,
+                                allowScrubbing: true,
+                                colors: const VideoProgressColors(
+                                  playedColor: Colors.red,
+                                  bufferedColor: Colors.grey,
+                                  backgroundColor: Colors.white24,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12.0),
+                            StreamBuilder(
+                              stream: Stream.periodic(const Duration(seconds: 1)),
+                              builder: (context, snapshot) {
+                                if (_controller == null || !_controller!.value.isInitialized) {
+                                  return const Text('00:00 / 00:00', style: TextStyle(color: Colors.white));
+                                }
+                                return Text(
+                                  '${_formatDuration(_controller!.value.position)} / ${_formatDuration(_controller!.value.duration)}',
+                                  style: const TextStyle(color: Colors.white),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+                    : const Center(child: CircularProgressIndicator()))
+                    : Container(
+                  constraints: const BoxConstraints(
+                    maxHeight: 400,
+                    maxWidth: double.infinity,
+                  ),
+                  child: Image.asset(
+                    _currentExercise.gifPath,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 30.0),
+
+              // 운동 설명
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children:
+                _currentExercise.description.asMap().entries.map((entry) {
+                  final idx = entry.key + 1;
+                  final text = entry.value;
+
+                  final parts = text.split(':');
+                  final title =
+                  parts.length > 1 ? parts[0].trim() : '설명';
+                  final body = parts.length > 1
+                      ? parts.sublist(1).join(':').trim()
+                      : text;
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.black12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$idx. $title',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16.0,
+                            color: Colors.black87,
                           ),
                         ),
-                        const SizedBox(width: 12.0),
-                        // 시간표시
+                        const SizedBox(height: 6),
                         Text(
-                          '${_formatDuration(_controller!.value.position)} / ${_formatDuration(_controller!.value.duration)}',
+                          body,
                           style: const TextStyle(
-                            color: Colors.white,
+                            fontSize: 15.0,
+                            color: Colors.black87,
+                            height: 1.4,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              )
-                  : const CircularProgressIndicator())
-                  : Image.asset(_currentExercise.gifPath),
-            ),
-
-            const SizedBox(height: 30.0),
-
-            // 운동 설명
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children:
-              _currentExercise.description.asMap().entries.map((entry) {
-                final idx = entry.key + 1;
-                final text = entry.value;
-
-                // '시작자세: 팔을...' 형식 분리
-                final parts = text.split(':');
-                final title =
-                parts.length > 1 ? parts[0].trim() : '설명';
-                final body = parts.length > 1
-                    ? parts.sublist(1).join(':').trim()
-                    : text;
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.black12),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black12,
-                        blurRadius: 4,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$idx. $title',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16.0,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        body,
-                        style: const TextStyle(
-                          fontSize: 15.0,
-                          color: Colors.black87,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 40.0),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // 운동하기 버튼
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(150, 50),
-                    backgroundColor: Colors.orange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0,
-                      vertical: 12.0,
-                    ),
-                  ),
-                  onPressed: _isPlayingVoice ? null : () async {
-                    final today = DateTime.now();
-                    final exerciseName = _currentExercise.title;
-
-                    setState(() {
-                      _isPlayingVoice =true; // 버튼 비활성화
-                    });
-
-                    try {
-                      // Firebase에 운동 기록 저장
-                      await FirebaseExerciseService.saveIndividualExercise(
-                        exerciseName: exerciseName,
-                        date: today,
-                      );
-
-                      // 음성 재생
-                      print('음성 재생 시도 중...');
-                      try {
-                        await _audioPlayer.play(AssetSource('vo1-1.mp3'));
-                        print('음성 재생 성공');
-
-                        // 음성이 끝나면 다시 버튼 활성화
-                        _audioPlayer.onPlayerComplete.listen((event) {
-                          if (mounted) {
-                            setState(() {
-                              _isPlayingVoice = false;
-                            });
-                          }
-                        });
-
-                      } catch (audioError) {
-                        print('음성 재생 실패: $audioError');
-
-                        // 대체 음성 파일 시도
-                        try {
-                          await _audioPlayer.play(AssetSource('vo1-1.wav'));
-                          print('대체 음성 재생 성공');
-                        } catch (altAudioError) {
-                          print('대체 음성도 실패: $altAudioError');
-                        }
-                      }
-
-                      // 성공 메시지 표시
-                      /*
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Row(
-                              children: [
-                                const Icon(Icons.check_circle, color: Colors.white),
-                                const SizedBox(width: 8),
-                                Text('$exerciseName 1회 완료!'),
-                              ],
-                            ),
-                            backgroundColor: Colors.green,
-                            duration: const Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                       */
-
-                    } catch (e) {
-                      print('운동 기록 저장 실패: $e');
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Row(
-                              children: [
-                                Icon(Icons.error, color: Colors.white),
-                                SizedBox(width: 8),
-                                Text('기록 저장에 실패했습니다'),
-                              ],
-                            ),
-                            backgroundColor: Colors.red,
-                            duration: Duration(seconds: 2),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-
-                      setState(() {
-                        _isPlayingVoice = false;
-                      });
-                    }
-                  },
-                  child: const Text('운동하기'),
-                ),
-
-                const SizedBox(width: 16),
-
-                // 다음 / 오늘의 운동 완료
-                // 마지막 운동일 때의 버튼을 다음과 같이 수정
-                if (!isLast)
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 50),
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _audioPlayer.stop();
-                      _goToNextExercise();
-                    },
-                    child: const Text('다음'),
-                  )
-                else
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(150, 50),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _audioPlayer.stop();
-
-                      // 완료 팝업만 띄우고 Firebase 조작은 하지 않음
-                      showDialog(
-                        context: context,
-                        barrierDismissible: false,
-                        builder: (context) => AlertDialog(
-                          backgroundColor: const Color(0xFFE4F3E1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16.0),
-                          ),
-                          title: Text(
-                            "${widget.tabName} 운동 완료!",
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          ),
-                          content: const Text(
-                            "모든 운동을 마쳤습니다!\n각 운동을 더 많이 하면 탭 완료 횟수가 증가합니다.\n\n어디로 이동하시겠어요?",
-                            style: TextStyle(
-                              color: Colors.black87,
-                              fontSize: 16,
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                backgroundColor: Colors.grey[300],
-                                foregroundColor: Colors.black87,
-                              ),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                              },
-                              child: const Text("운동 계속하기"),
-                            ),
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                backgroundColor: Colors.green,
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (context) => const DailyScreen()),
-                                );
-                              },
-                              child: const Text("일지 보기"),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    child: const Text('운동 마무리'),
-                  ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-
-            // 출처 표시
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                _currentExercise.source,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
+                  );
+                }).toList(),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 40.0),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // 운동하기 버튼
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(120, 50),
+                      backgroundColor: _isPlayingVoice ? Colors.orange : Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: _handleExerciseButton,
+                    child: Text(_isPlayingVoice ? '일시정지' : '운동하기'),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  // 다음 / 운동 마무리 버튼
+                  if (!isLast)
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(120, 50),
+                        backgroundColor: _isExerciseCompleted ? Colors.green : Colors.grey,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _isExerciseCompleted ? () async {
+                        await _goToNextExercise();
+                      } : null,
+                      child: const Text('다음'),
+                    )
+                  else
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        minimumSize: const Size(120, 50),
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: () async {
+                        await _audioPlayer.stop();
+
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => AlertDialog(
+                            backgroundColor: const Color(0xFFE4F3E1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16.0),
+                            ),
+                            title: Text(
+                              "${widget.tabName} 운동 세션 완료!",
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                            content: const Text(
+                              "이번 운동 세션을 마쳤습니다!\n완료한 개별 운동들이 일지에 기록되었습니다.\n\n어디로 이동하시겠어요?",
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 16,
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.grey[300],
+                                  foregroundColor: Colors.black87,
+                                ),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: const Text("운동 계속하기"),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                ),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (context) => const DailyScreen()),
+                                  );
+                                },
+                                child: const Text("일지 보기"),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: const Text('운동 마무리'),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 출처 표시
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  _currentExercise.source,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 도움말 팝업으로 사용안내 띄우기!! ////
+/// 도움말 팝업
 class _HelpDialog extends StatelessWidget {
   const _HelpDialog({super.key});
 
@@ -708,13 +875,12 @@ class _HelpDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10.0),
       ),
-      insetPadding: const EdgeInsets.all(30.0), // 팝업 크기 설정
+      insetPadding: const EdgeInsets.all(30.0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18.0),
           boxShadow: [
-            // 그림자 효과
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
               spreadRadius: 3.0,
@@ -755,15 +921,13 @@ class _HelpDialog extends StatelessWidget {
   }
 }
 
-////// 날짜별 운동 기록 저장 //////
+// 기존 클래스들
 class ExerciseLog extends ChangeNotifier {
   final Map<String, List<String>> _log = {};
 
-  //// 운동기록 추가 /////
   void addExercise(DateTime date, String exerciseName) {
     final key = _formatDate(date);
 
-    // 중복 허용
     if (_log.containsKey(key)) {
       _log[key]!.add(exerciseName);
     } else {
@@ -772,7 +936,6 @@ class ExerciseLog extends ChangeNotifier {
     notifyListeners();
   }
 
-  ///// 특정 날짜의 운동 목록 반환 //////
   List<String> getExercisesForDay(DateTime date) {
     final key = _formatDate(date);
     return _log[key] ?? [];
@@ -782,13 +945,11 @@ class ExerciseLog extends ChangeNotifier {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 
-  /// 오늘 운동 횟수 반환
   int get todayCount {
     final todayKey = _formatDate(DateTime.now());
     return _log[todayKey]?.length ?? 0;
   }
 
-  /// 최근 7일간 운동한 일수 반환
   int get weeklyExerciseDays {
     final now = DateTime.now();
     int count = 0;

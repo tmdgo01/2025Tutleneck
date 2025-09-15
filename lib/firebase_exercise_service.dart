@@ -8,11 +8,10 @@ class FirebaseExerciseService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // 탭별 운동 목록 정의 (실제 앱의 데이터와 일치해야 함)
   static const Map<String, List<String>> tabExercises = {
     '일상 스트레칭': [
       '턱 당기기',
-      '목 강화 운동1 (선 자세)',
+      '목 강화 운동1(선 자세)',  // 정확한 이름
       '목 강화 운동2',
       '목 스트레칭1(앉은 자세)',
       '목 스트레칭2(앉은 자세)',
@@ -20,11 +19,11 @@ class FirebaseExerciseService {
       '원 방향 목 돌리기',
     ],
     '증상 완화 운동': [
-      '벽 밀기 (대흉근 스트레칭)',
-      '가슴 스트레칭(소흉근 스트레칭)',
+      '벽 밀기',              // 수정됨
+      '가슴 스트레칭',         // 수정됨
       '목 강화 운동1',
       'WYT 자세 운동',
-      'Cat–Cow (척추 가동성 운동)',
+      '척추 가동성 운동',      // 수정됨
     ],
     '폼롤러 운동': [
       '척추기립근 스트레칭',
