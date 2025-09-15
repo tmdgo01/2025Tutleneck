@@ -10,7 +10,6 @@ import 'package:finalproject/alarm_list_page.dart';
 import 'package:finalproject/posture_service.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'daily_screen.dart';
-// import 'package:finalproject/scr/splash.dart'; // 스플래시 관련 import 제거
 import 'package:finalproject/posture_pal_page.dart' as posture;
 import 'dart:async';
 import 'background_alarm_service.dart';
@@ -154,7 +153,51 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-class AuthWrapper extends StatefulWidget {
+// class MyApp extends StatelessWidget {
+//   const MyApp({super.key});
+//
+//   @override
+//   Widget build(BuildContext context) {
+//     return MaterialApp(
+//       navigatorKey: navigatorKey,
+//       debugShowCheckedModeBanner: false,
+//       home: FutureBuilder(
+//         future: Firebase.initializeApp(),
+//         builder: (context, snapshot) {
+//           if (snapshot.connectionState == ConnectionState.waiting) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: CircularProgressIndicator(color: Colors.green),
+//               ),
+//             );
+//           }
+//
+//           if (snapshot.hasError) {
+//             return const Scaffold(
+//               backgroundColor: Color(0xFFE4F3E1),
+//               body: Center(
+//                 child: Text(
+//                   'Firebase 초기화 중 오류가 발생했습니다.',
+//                   style: TextStyle(color: Colors.red),
+//                 ),
+//               ),
+//             );
+//           }
+//
+//           return const AuthWrapper();
+//         },
+//       ),
+//       routes: {
+//         '/home': (context) => const HomeScreen(),
+//         '/auth': (context) => const AuthScreen(),
+//         '/alarm': (context) => const AlarmListPage(),
+//       },
+//     );
+//   }
+// }
+
+class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
   @override
@@ -420,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
           padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
 
               // 로고
               Flexible(
@@ -455,23 +498,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 20),
 
-              // 점수 카드
-              Flexible(
-                flex: 2,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
+              // Firebase 실시간 자세 점수 표시 - 수정된 부분
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
                 child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                   stream: _postureService.getTodayPostureStream(),
                   builder: (context, snapshot) {
@@ -554,7 +595,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 32),
 
               // 메뉴 버튼 영역
               Expanded(
